@@ -24,8 +24,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Per-app use this week (from the week's first day, Monday or Sunday as set in Settings, up to
- * today), shared by the Most used card, the grid order and the phone remote's app list.
+ * Per-app use, two ways:
+ *  - this week (from the week's first day, Monday or Sunday as set in Settings, up to today),
+ *    leaving out the apps excluded in Settings: the Most used card;
+ *  - all time, every app: the grid order and the phone remote's app list.
  *
  * Per day, an app's time is the larger of its visible time and its foreground-service time, so
  * an app that keeps playing with the screen elsewhere (RadioStream) counts its playback. Visible,
@@ -37,6 +39,9 @@ import java.util.Set;
  * clock battery: after a power cut it boots in 1974 until network time fixes the clock, and
  * Android's usage history is shifted out of the last-7-days window by the jump. The copy is only
  * written while the clock is sane, and each day counts the larger of the copy and Android's figure.
+ *
+ * All time = files/usage-alltime.json (each day's final figures, added when the day leaves the
+ * 7-day copy) + the days still in the copy. It starts from zero: only use the launcher counted.
  */
 final class UsageScores {
     private static final int KEEP_DAYS = 7; // today and the 6 days before: any week's first day is in it
@@ -50,11 +55,31 @@ final class UsageScores {
                 ctx.getPackageName()) == AppOpsManager.MODE_ALLOWED;
     }
 
-    /** Package -> milliseconds in use this week. Empty without Usage access. */
-    static synchronized Map<String, Long> week(Context ctx) {
-        if (!granted(ctx)) return Collections.emptyMap();
+    /** Use this week (Most used card) and all time (grid order). */
+    static final class Scores {
+        static final Scores NONE = new Scores(Collections.emptyMap(), Collections.emptyMap());
+        final Map<String, Long> week, allTime;
+
+        Scores(Map<String, Long> week, Map<String, Long> allTime) {
+            this.week = week;
+            this.allTime = allTime;
+        }
+    }
+
+    /** Package -> milliseconds in use this week, excluded apps left out. Empty without Usage access. */
+    static Map<String, Long> week(Context ctx) {
+        return read(ctx).week;
+    }
+
+    /** Package -> milliseconds in use since tracking began, every app. */
+    static Map<String, Long> allTime(Context ctx) {
+        return read(ctx).allTime;
+    }
+
+    static synchronized Scores read(Context ctx) {
+        if (!granted(ctx)) return Scores.NONE;
         LocalDate today = LocalDate.now();
-        if (today.getYear() < SANE_YEAR) return Collections.emptyMap(); // clock not set yet
+        if (today.getYear() < SANE_YEAR) return Scores.NONE; // clock not set yet
         LocalDate first = today.minusDays(KEEP_DAYS - 1);
         LocalDate weekStart = weekStart(ctx, today);
 
@@ -77,20 +102,35 @@ final class UsageScores {
             days.computeIfAbsent(day, d -> new HashMap<>()).merge(u.getPackageName(), time, Long::sum);
         }
 
-        // Merge with the launcher's copy: per day and app, the larger figure wins.
+        // Merge with the launcher's copy: per day and app, the larger figure wins. Days leaving
+        // the copy go into the all-time total.
         Map<LocalDate, Map<String, Long>> saved = readHistory(ctx);
-        if (merge(saved, days, first, today)) writeHistory(ctx, saved);
+        Map<String, Long> archive = readTotal(ctx);
+        int archivedBefore = archive.size();
+        long sumBefore = sum(archive);
+        if (merge(saved, days, first, today, archive)) {
+            writeHistory(ctx, saved);
+            if (archive.size() != archivedBefore || sum(archive) != sumBefore) writeTotal(ctx, archive);
+        }
 
         Set<String> excluded = LauncherSettings.usageExcluded(ctx); // Settings → Home screen
-        return totals(saved, weekStart, excluded);
+        return new Scores(totals(saved, weekStart, excluded), allTime(archive, saved));
+    }
+
+    /** The all-time total: the archived days plus every day still in the copy. */
+    static Map<String, Long> allTime(Map<String, Long> archive, Map<LocalDate, Map<String, Long>> saved) {
+        Map<String, Long> all = new HashMap<>(archive);
+        totals(saved, LocalDate.MIN, Collections.emptySet()).forEach((k, v) -> all.merge(k, v, Long::sum));
+        return all;
     }
 
     /**
      * Merges a day's Android figures into the launcher's copy (the larger wins, per day and app)
-     * and drops days outside [{@code first}, {@code today}]. Returns true if anything changed.
+     * and drops days outside [{@code first}, {@code today}], adding their figures to
+     * {@code archive} (the all-time total). Returns true if anything changed.
      */
     static boolean merge(Map<LocalDate, Map<String, Long>> saved, Map<LocalDate, Map<String, Long>> days,
-                         LocalDate first, LocalDate today) {
+                         LocalDate first, LocalDate today, Map<String, Long> archive) {
         boolean changed = false;
         for (Map.Entry<LocalDate, Map<String, Long>> d : days.entrySet()) {
             Map<String, Long> keep = saved.computeIfAbsent(d.getKey(), k -> new HashMap<>());
@@ -102,7 +142,13 @@ final class UsageScores {
                 }
             }
         }
-        if (saved.keySet().removeIf(d -> d.isBefore(first) || d.isAfter(today))) changed = true;
+        for (Iterator<Map.Entry<LocalDate, Map<String, Long>>> it = saved.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<LocalDate, Map<String, Long>> d = it.next();
+            if (!d.getKey().isBefore(first) && !d.getKey().isAfter(today)) continue;
+            d.getValue().forEach((k, v) -> archive.merge(k, v, Long::sum));
+            it.remove();
+            changed = true;
+        }
         return changed;
     }
 
@@ -127,6 +173,54 @@ final class UsageScores {
     /** The first day of the week that starts on {@code start}: the last one, or today if it is one. */
     static LocalDate weekStart(DayOfWeek start, LocalDate today) {
         return today.with(TemporalAdjusters.previousOrSame(start));
+    }
+
+    private static long sum(Map<String, Long> m) {
+        long t = 0;
+        for (long v : m.values()) t += v;
+        return t;
+    }
+
+    private static File totalFile(Context ctx) {
+        return new File(ctx.getFilesDir(), "usage-alltime.json");
+    }
+
+    /** {"since": "2026-10-26", "apps": {"pkg": ms, ...}}; empty if not started yet. */
+    private static Map<String, Long> readTotal(Context ctx) {
+        File f = totalFile(ctx);
+        Map<String, Long> out = new HashMap<>();
+        if (!f.isFile()) return out;
+        try {
+            JSONObject apps = new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8))
+                    .getJSONObject("apps");
+            for (Iterator<String> p = apps.keys(); p.hasNext(); ) {
+                String pkg = p.next();
+                out.put(pkg, apps.getLong(pkg));
+            }
+        } catch (Exception e) {
+            out.clear(); // corrupt: start again
+        }
+        return out;
+    }
+
+    private static void writeTotal(Context ctx, Map<String, Long> apps) {
+        try {
+            File f = totalFile(ctx), tmp = new File(f.getPath() + ".tmp");
+            String since = LocalDate.now().toString();
+            if (f.isFile()) {
+                try {
+                    since = new JSONObject(new String(Files.readAllBytes(f.toPath()), StandardCharsets.UTF_8))
+                            .optString("since", since);
+                } catch (Exception ignored) {
+                }
+            }
+            JSONObject a = new JSONObject();
+            for (Map.Entry<String, Long> e : apps.entrySet()) a.put(e.getKey(), (long) e.getValue());
+            JSONObject root = new JSONObject().put("since", since).put("apps", a);
+            Files.write(tmp.toPath(), root.toString().getBytes(StandardCharsets.UTF_8));
+            if (!tmp.renameTo(f)) tmp.delete();
+        } catch (Exception ignored) {
+        }
     }
 
     private static File historyFile(Context ctx) {

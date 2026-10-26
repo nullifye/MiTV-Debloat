@@ -2,6 +2,7 @@ package my.rafhan.app.tvhome;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.format.DateFormat;
@@ -148,6 +149,21 @@ final class LauncherSettings {
         Set<String> s = prefs(ctx).getStringSet(USAGE_EXCLUDED, null);
         return s != null ? new HashSet<>(s)
                 : new HashSet<>(Arrays.asList(ctx.getResources().getStringArray(R.array.usage_excluded)));
+    }
+
+    /**
+     * The left-out apps that are on the TV (installed and switched on), as the pickers list them.
+     * Uninstalled ones stay saved, so a reinstalled app is still left out.
+     */
+    static Set<String> usageExcludedPresent(Context ctx) {
+        Set<String> on = new HashSet<>();
+        for (String pkg : usageExcluded(ctx)) {
+            try {
+                if (ctx.getPackageManager().getApplicationInfo(pkg, 0).enabled) on.add(pkg);
+            } catch (PackageManager.NameNotFoundException ignored) {
+            }
+        }
+        return on;
     }
 
     static void setUsageExcluded(Context ctx, String pkg, boolean excluded) {

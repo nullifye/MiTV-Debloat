@@ -376,8 +376,8 @@ final class SettingsScreen {
         out.add(choice(LauncherSettings.WEEK_START, "Week starts on", "Counts from this day up to today",
                 new int[] {1, 7}, new String[] {"Monday", "Sunday"}));
         Row ex = new Row(PICKER, "Leave out");
-        ex.sub = "Apps that don't count, like Live TV (it's only the HDMI and antenna screen)";
-        int n = LauncherSettings.usageExcluded(ctx).size();
+        ex.sub = "Not on the card, like Live TV (it's only the HDMI and antenna screen)";
+        int n = LauncherSettings.usageExcludedPresent(ctx).size();
         ex.value = () -> n == 1 ? "1 app" : n + " apps";
         ex.action = this::openUsagePicker;
         out.add(ex);
@@ -413,11 +413,11 @@ final class SettingsScreen {
         out.add(toggle(LauncherSettings.ALERT_PLAY, "Play Store updates", "Checked every 6 hours"));
         out.add(toggle(LauncherSettings.ALERT_HDMI, "New HDMI devices", "A device that appears over HDMI-CEC"));
         out.add(toggle(LauncherSettings.ALERT_BT, "Bluetooth devices", "Connecting or disconnecting (not the TV remote)"));
+        out.add(toggle(LauncherSettings.NET_BANNER, "Connection status",
+                "Wi-Fi connected, disconnected or no internet, over any app"));
         out.add(toggle(LauncherSettings.ALERT_MEMORY, "Low memory", "When RAM use passes the level below"));
         out.add(choice(LauncherSettings.MEMORY_LEVEL, "Low-memory level", "Alerts again after dropping 5 points under it",
                 new int[] {80, 85, 90}, new String[] {"80 %", "85 %", "90 %"}));
-        out.add(toggle(LauncherSettings.NET_BANNER, "Connection banner",
-                "Wi-Fi connected, disconnected or no internet, over any app"));
     }
 
     private void statusRows(List<Row> out) {

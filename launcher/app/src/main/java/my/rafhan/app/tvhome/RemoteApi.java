@@ -433,7 +433,7 @@ final class RemoteApi {
             appCacheDock = ordered.size();
             List<AppEntry> rest = new ArrayList<>(all);
             rest.removeAll(ordered);
-            UsageScores.sort(rest, UsageScores.week(ctx));
+            UsageScores.sort(rest, UsageScores.allTime(ctx)); // same order as the TV's grid
             ordered.addAll(rest);
             appCache = ordered;
             appCacheAt = now;

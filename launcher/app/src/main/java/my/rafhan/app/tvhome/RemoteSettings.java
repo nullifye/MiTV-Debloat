@@ -77,17 +77,18 @@ final class RemoteSettings {
                 choice(LauncherSettings.WEEK_START, "Week starts on", "Counts from this day up to today",
                         new int[] {1, 7}, new String[] {"Monday", "Sunday"}),
                 row("apps", LauncherSettings.USAGE_EXCLUDED, "Leave out",
-                        "Apps that don't count, like Live TV (it's only the HDMI and antenna screen)")
-                        .put("value", new JSONArray(LauncherSettings.usageExcluded(ctx)))));
+                        "Not on the card, like Live TV (it's only the HDMI and antenna screen)")
+                        .put("value", new JSONArray(LauncherSettings.usageExcludedPresent(ctx)))));
         cats.put(category("Notifications", "What the bell tells you",
+                toggle(LauncherSettings.ALERT_UPDATE, "TV Home updates", "Checked every 6 hours"),
                 toggle(LauncherSettings.ALERT_PLAY, "Play Store updates", "Checked every 6 hours"),
                 toggle(LauncherSettings.ALERT_HDMI, "New HDMI devices", "A device that appears over HDMI-CEC"),
                 toggle(LauncherSettings.ALERT_BT, "Bluetooth devices", "Connecting or disconnecting (not the TV remote)"),
+                toggle(LauncherSettings.NET_BANNER, "Connection status",
+                        "Wi-Fi connected, disconnected or no internet, over any app"),
                 toggle(LauncherSettings.ALERT_MEMORY, "Low memory", "When RAM use passes the level below"),
                 choice(LauncherSettings.MEMORY_LEVEL, "Low-memory level", "Alerts again after dropping 5 points under it",
-                        new int[] {80, 85, 90}, new String[] {"80 %", "85 %", "90 %"}),
-                toggle(LauncherSettings.NET_BANNER, "Connection banner",
-                        "Wi-Fi connected, disconnected or no internet, over any app")));
+                        new int[] {80, 85, 90}, new String[] {"80 %", "85 %", "90 %"})));
         cats.put(category("Info overlay", "Speed, uptime and clock over apps",
                 toggle(LauncherSettings.STATUS_BAR, "Show over apps",
                         "A thin bar over every app, never on the home screen"),

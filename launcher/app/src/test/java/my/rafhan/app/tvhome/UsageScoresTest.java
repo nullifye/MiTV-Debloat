@@ -40,16 +40,16 @@ public class UsageScoresTest {
         Map<LocalDate, Map<String, Long>> android = new HashMap<>();
         android.put(day, new HashMap<>(Map.of("a", 5L, "b", 10L)));
 
-        assertTrue(UsageScores.merge(saved, android, day.minusDays(6), day));
+        assertTrue(UsageScores.merge(saved, android, day.minusDays(6), day, new HashMap<>()));
         assertEquals(Long.valueOf(5), saved.get(day).get("a"));
 
         // The same figures again change nothing.
-        assertFalse(UsageScores.merge(saved, android, day.minusDays(6), day));
+        assertFalse(UsageScores.merge(saved, android, day.minusDays(6), day, new HashMap<>()));
 
         // A larger figure wins; a smaller one doesn't overwrite it.
         Map<LocalDate, Map<String, Long>> bigger = new HashMap<>();
         bigger.put(day, new HashMap<>(Map.of("a", 8L, "b", 4L)));
-        assertTrue(UsageScores.merge(saved, bigger, day.minusDays(6), day));
+        assertTrue(UsageScores.merge(saved, bigger, day.minusDays(6), day, new HashMap<>()));
         assertEquals(Long.valueOf(8), saved.get(day).get("a"));
         assertEquals(Long.valueOf(10), saved.get(day).get("b"));
     }
@@ -59,7 +59,7 @@ public class UsageScoresTest {
         LocalDate today = LocalDate.of(2026, 10, 24);
         Map<LocalDate, Map<String, Long>> saved = new HashMap<>();
         saved.put(today.minusDays(10), new HashMap<>(Map.of("old", 1L)));
-        assertTrue(UsageScores.merge(saved, Collections.emptyMap(), today.minusDays(6), today));
+        assertTrue(UsageScores.merge(saved, Collections.emptyMap(), today.minusDays(6), today, new HashMap<>()));
         assertTrue(saved.isEmpty());
     }
 
@@ -72,7 +72,7 @@ public class UsageScoresTest {
         Map<LocalDate, Map<String, Long>> android = new HashMap<>();
         android.put(today, new HashMap<>(Map.of("t", 3L)));
 
-        assertTrue(UsageScores.merge(saved, android, today.minusDays(6), today));
+        assertTrue(UsageScores.merge(saved, android, today.minusDays(6), today, new HashMap<>()));
         assertEquals(Long.valueOf(2), saved.get(yesterday).get("y"));
         assertEquals(Long.valueOf(3), saved.get(today).get("t"));
     }
@@ -90,6 +90,25 @@ public class UsageScoresTest {
         assertFalse(totals.containsKey("b"));
         assertFalse(totals.containsKey("old"));
         assertEquals(1, totals.size());
+    }
+
+    @Test
+    public void daysLeavingTheCopyGoIntoTheAllTimeTotal() {
+        LocalDate today = LocalDate.of(2026, 10, 24);
+        Map<LocalDate, Map<String, Long>> saved = new HashMap<>();
+        saved.put(today.minusDays(7), new HashMap<>(Map.of("a", 50L, "b", 7L)));
+        saved.put(today, new HashMap<>(Map.of("a", 5L)));
+        Map<String, Long> archive = new HashMap<>(Map.of("a", 1000L));
+        assertTrue(UsageScores.merge(saved, Collections.emptyMap(), today.minusDays(6), today, archive));
+        assertEquals(Long.valueOf(1050), archive.get("a"));
+        assertEquals(Long.valueOf(7), archive.get("b"));
+        // All time = archive + the days still in the copy, nothing excluded.
+        Map<String, Long> all = UsageScores.allTime(archive, saved);
+        assertEquals(Long.valueOf(1055), all.get("a"));
+        assertEquals(Long.valueOf(7), all.get("b"));
+        // A day that stays is never archived twice.
+        assertFalse(UsageScores.merge(saved, Collections.emptyMap(), today.minusDays(6), today, archive));
+        assertEquals(Long.valueOf(1050), archive.get("a"));
     }
 
     @Test

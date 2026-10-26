@@ -118,7 +118,8 @@ public class MainActivity extends Activity {
     private FrameLayout upPage;
     private PrayerPanel prayer;
     private UsagePanel usage;
-    private Map<String, Long> usageScores = new HashMap<>();
+    /** This week (the Most used card) and all time (the grid order). */
+    private UsageScores.Scores usageScores = UsageScores.Scores.NONE;
     private final GradientDrawable glowDrawable = new GradientDrawable();
     private int glowColor = Color.TRANSPARENT;
     private ValueAnimator glowAnim;
@@ -470,7 +471,7 @@ public class MainActivity extends Activity {
             long stamp = DockConfig.stamp(this);
             List<String> dockPkgs = DockConfig.load(this);
             dockStamp = stamp;
-            Map<String, Long> scores = UsageScores.week(this);
+            UsageScores.Scores scores = UsageScores.read(this);
             main.post(() -> applyApps(all, dockPkgs, scores));
         });
     }
@@ -507,7 +508,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void applyApps(List<AppEntry> all, List<String> dockPkgs, Map<String, Long> scores) {
+    private void applyApps(List<AppEntry> all, List<String> dockPkgs, UsageScores.Scores scores) {
         String focusedPkg = focusedPackage();
         Map<String, AppEntry> byPkg = new HashMap<>();
         for (AppEntry e : all) byPkg.put(e.pkg, e);
@@ -557,7 +558,7 @@ public class MainActivity extends Activity {
         gridIdx = clamp(gridIdx, apps.size());
         if (section == GRID && apps.isEmpty()) section = DOCK;
         if (section == DOCK && dock.isEmpty()) section = TOP;
-        usage.render(allForUsage(), usageScores);
+        usage.render(allForUsage(), usageScores.week);
         if (!appsLoaded) {
             appsLoaded = true;
             restoreFocus(); // needs the app list; first load only
@@ -592,21 +593,21 @@ public class MainActivity extends Activity {
         }
     }
 
-    /** Most used first (last 7 days); apps with no recorded use stay A-Z. List.sort is stable. */
+    /** Most used first (all time, every app); apps with no use stay A-Z. List.sort is stable. */
     private void sortByUsage(List<AppEntry> list) {
-        UsageScores.sort(list, usageScores);
+        UsageScores.sort(list, usageScores.allTime);
     }
 
     /** On every return home: re-rank the grid and refresh the card, keeping focus on the same app. */
     private void refreshUsage() {
         if (!appsLoaded) return; // the first loadApps() ranks them
         worker.execute(() -> {
-            Map<String, Long> scores = UsageScores.week(this);
+            UsageScores.Scores scores = UsageScores.read(this);
             main.post(() -> applyUsage(scores));
         });
     }
 
-    private void applyUsage(Map<String, Long> scores) {
+    private void applyUsage(UsageScores.Scores scores) {
         usageScores = scores;
         List<AppEntry> sorted = new ArrayList<>(apps);
         sortByUsage(sorted);
@@ -619,7 +620,7 @@ public class MainActivity extends Activity {
         }
         List<AppEntry> all = new ArrayList<>(dock);
         all.addAll(apps);
-        usage.render(all, usageScores);
+        usage.render(all, usageScores.week);
     }
 
     private void onTileReady(AppEntry e) {
