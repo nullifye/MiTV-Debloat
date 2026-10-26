@@ -121,6 +121,10 @@ fn grants(sdk: u32) -> Vec<(&'static str, Vec<&'static str>)> {
             vec!["appops", "set", PKG, "GET_USAGE_STATS", "allow"],
         ),
         (
+            "Install its own updates from GitHub",
+            vec!["appops", "set", PKG, "REQUEST_INSTALL_PACKAGES", "allow"],
+        ),
+        (
             "Draw over apps (PIN, banners, overlay)",
             vec!["appops", "set", PKG, "SYSTEM_ALERT_WINDOW", "allow"],
         ),
@@ -1144,6 +1148,7 @@ mod tests {
             "enabled_accessibility_services flar2.homebutton/a.i:{A11Y_SERVICE}"
         )));
         assert!(l.contains("set-home-activity my.rafhan.app.tvhome/.MainActivity"));
+        assert!(l.contains("appops set my.rafhan.app.tvhome REQUEST_INSTALL_PACKAGES allow"));
         assert!(!l.contains("disable-user"), "no handover unless asked");
         assert!(p.warnings.is_empty());
         // Runs to the end, records the stock launcher and accessibility state.
@@ -1479,6 +1484,7 @@ mod tests {
                 size: 1,
                 url: String::new(),
             }),
+            tui: false,
         };
         let p = setup_all(&mut env, &rel, false, true).unwrap();
         let l = lines(&p);
@@ -1564,6 +1570,7 @@ mod tests {
                 size: 1,
                 url: String::new(),
             }),
+            tui: false,
         };
         let list = vec![rel("1.9", true), rel("1.10", true), rel("2.0", false)];
         assert_eq!(latest_with_apk(&list).unwrap().version, "1.10");

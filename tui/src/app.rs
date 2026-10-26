@@ -95,6 +95,8 @@ pub struct App {
     pub ascii: bool,
     /// NO_COLOR: no colours, highlights as reversed text.
     pub no_color: bool,
+    /// Where releases come from (`--repo`).
+    pub repo: String,
     pub config: Config,
     jobs: Sender<Job>,
     pub quit: bool,
@@ -175,6 +177,7 @@ impl App {
             dry_run,
             ascii: false,
             no_color: false,
+            repo: crate::github::DEFAULT_REPO.to_string(),
             jobs,
             quit: false,
             busy: None,
@@ -298,6 +301,10 @@ impl App {
 
     /// First screen: get adb, then reconnect to the last TV or look for one.
     pub fn start(&mut self, tv: Option<String>) {
+        // Also tells whether this app has a newer version (the header says so).
+        if !self.releases_loaded {
+            self.send(Job::FetchReleases);
+        }
         if !self.adb_found {
             self.enter(Screen::NeedAdb);
             return;

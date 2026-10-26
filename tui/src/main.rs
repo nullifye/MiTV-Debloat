@@ -94,6 +94,7 @@ fn main() -> Result<()> {
     let repo = args
         .repo
         .unwrap_or_else(|| github::DEFAULT_REPO.to_string());
+    let app_repo = repo.clone();
     // No adb yet is fine: the app offers to download it into its own folder.
     let found = adb::find_adb(args.adb.as_deref(), &setup::local_adb(&store.app_dir));
     let adb = adb::Adb {
@@ -120,6 +121,7 @@ fn main() -> Result<()> {
         args.dry_run,
         job_tx,
     );
+    app.repo = app_repo;
     app.ascii = args.ascii.unwrap_or_else(old_console);
     app.no_color = args.no_color || std::env::var_os("NO_COLOR").is_some_and(|v| !v.is_empty());
     app.log.info(format!(

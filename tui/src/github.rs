@@ -32,6 +32,8 @@ pub struct Release {
     pub prerelease: bool,
     /// The launcher APK (`tvhome-<version>.apk`), if the release has one.
     pub apk: Option<Asset>,
+    /// It has this app's downloads (`tvhome-tui-<version>-<target>.*`).
+    pub tui: bool,
 }
 
 #[derive(Deserialize)]
@@ -66,6 +68,7 @@ pub fn parse_releases(json: &str) -> Result<Vec<Release>> {
         .into_iter()
         .filter(|r| !r.draft)
         .map(|r| {
+            let tui = r.assets.iter().any(|a| a.name.starts_with("tvhome-tui-"));
             let apk = r
                 .assets
                 .into_iter()
@@ -88,6 +91,7 @@ pub fn parse_releases(json: &str) -> Result<Vec<Release>> {
                 notes: r.body.unwrap_or_default(),
                 prerelease: r.prerelease,
                 apk,
+                tui,
             }
         })
         .collect())
@@ -98,6 +102,15 @@ fn agent() -> ureq::Agent {
         .timeout_global(Some(Duration::from_secs(600)))
         .build()
         .into()
+}
+
+/// A release with a newer version of this app than `current`, if there is one.
+pub fn newer_app<'a>(releases: &'a [Release], current: &str) -> Option<&'a Release> {
+    releases
+        .iter()
+        .filter(|r| r.tui && !r.prerelease)
+        .max_by(|a, b| compare_versions(&a.version, &b.version))
+        .filter(|r| compare_versions(&r.version, current) == Ordering::Greater)
 }
 
 pub fn fetch_releases(repo: &str) -> Result<Vec<Release>> {
@@ -275,5 +288,30 @@ mod tests {
             sha256_file(&f).unwrap(),
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
+    }
+
+    #[test]
+    fn newer_app_needs_a_newer_release_with_its_downloads() {
+        let rel = |v: &str, tui: bool, pre: bool| Release {
+            tag: format!("v{v}"),
+            version: v.into(),
+            title: v.into(),
+            date: String::new(),
+            notes: String::new(),
+            prerelease: pre,
+            apk: None,
+            tui,
+        };
+        let list = vec![
+            rel("1.11.0", false, false),
+            rel("1.10.2", true, false),
+            rel("2.0", true, true),
+        ];
+        assert_eq!(
+            newer_app(&list, "1.10.1").map(|r| r.version.as_str()),
+            Some("1.10.2")
+        );
+        assert!(newer_app(&list, "1.10.2").is_none());
+        assert!(newer_app(&list, "1.10.10").is_none());
     }
 }

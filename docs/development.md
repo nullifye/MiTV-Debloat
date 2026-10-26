@@ -92,6 +92,8 @@ Check it worked: the next CI run's *Release signing key* step runs instead of be
    ```
 3. CI builds and tests it, then creates the release **TV Home 1.9** with `tvhome-1.9.apk` and notes generated from the commits.
 
+TVs running TV Home 1.10.2 or newer see the release in the bell within 6 hours and can update from there; the setup app shows its own newer version in its header.
+
 The release job refuses to publish if the tag doesn't match `versionName`, or if the signing secrets are missing (a debug-signed release couldn't be updated later without losing settings).
 
 ## The terminal app (tui/)

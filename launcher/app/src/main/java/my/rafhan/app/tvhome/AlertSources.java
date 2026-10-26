@@ -7,6 +7,7 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.SharedPreferences;
 import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
@@ -29,6 +30,8 @@ import java.util.regex.Pattern;
 /**
  * Feeds the bell (Alerts), modelled on Matinee's, from RemoteService so it runs while any app is
  * on screen:
+ *  - TV Home updates: a newer release on GitHub (UpdateCheck), at start and every 6 h; opening it
+ *    downloads and installs it (UpdateActivity). A banner shows once per version;
  *  - Play Store updates: the Play Store's own "updates available" notifications, read from
  *    `dumpsys notification --noredact` (this TV refuses notification-listener access; the
  *    notification service needs DUMP and PACKAGE_USAGE_STATS, both granted by
@@ -40,6 +43,7 @@ import java.util.regex.Pattern;
  * Device and memory alerts also show a short banner over any app.
  */
 final class AlertSources {
+    private static final long UPDATE_EVERY_MS = 6 * 60 * 60_000L, UPDATE_FIRST_MS = 60_000;
     private static final long PLAY_EVERY_MS = 6 * 60 * 60_000L, MEMORY_EVERY_MS = 60_000, BT_SETTLE_MS = 2 * 60_000;
     private static final float MEMORY_REARM_GAP = 0.05f; // re-arm 5 points under the level
     private static final Pattern REMOTE = Pattern.compile("(?i)\\b(rc|remote)\\b");
@@ -67,6 +71,10 @@ final class AlertSources {
     private final LauncherSettings.Listener settingsListener = this::onSettingChanged;
 
     private void onSettingChanged(String key) {
+        if (LauncherSettings.ALERT_UPDATE.equals(key)) {
+            main.removeCallbacks(updateCheck);
+            main.post(updateCheck);
+        }
         if (!LauncherSettings.ALERT_PLAY.equals(key)) return;
         main.removeCallbacks(playCheck);
         main.post(playCheck);
@@ -75,6 +83,8 @@ final class AlertSources {
     void start() {
         LauncherSettings.addListener(settingsListener);
         main.post(playCheck);
+        // A minute in: the network is usually up by then after a boot.
+        main.postDelayed(updateCheck, UPDATE_FIRST_MS);
         main.postDelayed(memoryCheck, MEMORY_EVERY_MS);
         if (tim != null) {
             scanCec();
@@ -94,6 +104,34 @@ final class AlertSources {
         } catch (RuntimeException ignored) {
         }
     }
+
+    // ---------------------------------------------------------------- TV Home updates
+
+    private final Runnable updateCheck = new Runnable() {
+        @Override
+        public void run() {
+            boolean on = LauncherSettings.flag(ctx, LauncherSettings.ALERT_UPDATE);
+            Thread t = new Thread(() -> {
+                UpdateCheck.Release r = on ? UpdateCheck.newer(ctx) : null;
+                List<Alerts.Alert> now = new ArrayList<>();
+                if (r != null) {
+                    now.add(new Alerts.Alert("update:" + r.version, Alerts.UPDATE,
+                            "TV Home " + r.version + " is available", "Open to update (your settings are kept)",
+                            System.currentTimeMillis(), UpdateActivity.intent(ctx, r)));
+                    SharedPreferences p = ctx.getSharedPreferences("alerts", Context.MODE_PRIVATE);
+                    if (!r.version.equals(p.getString("update_banner", null))) {
+                        p.edit().putString("update_banner", r.version).apply();
+                        main.post(() -> banner.showMessage(R.drawable.ic_update, NetState.GREEN,
+                                "TV Home " + r.version + " is available · open the bell to update", 6000));
+                    }
+                }
+                alerts.sync(Alerts.UPDATE, now);
+            }, "alerts-update");
+            t.setDaemon(true);
+            t.start();
+            main.postDelayed(this, UPDATE_EVERY_MS);
+        }
+    };
 
     // ---------------------------------------------------------------- Play Store updates
 

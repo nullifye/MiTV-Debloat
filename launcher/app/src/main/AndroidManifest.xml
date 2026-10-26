@@ -6,6 +6,8 @@
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- TV Home updates from GitHub, installed with Android's installer after the user confirms. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Bell: Bluetooth devices connecting / disconnecting. BLUETOOTH alone is enough up to
          Android 11; 12+ needs the runtime permission below for names and the ACL broadcasts, and
          MainActivity asks for it at start (a TV without Bluetooth just never asks). -->
@@ -106,6 +108,12 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".UpdateActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@style/UpdateTheme" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

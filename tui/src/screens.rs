@@ -358,6 +358,7 @@ impl App {
                 v.push(choice(r.clone(), "Used before", Act::ConnectTo(r.clone())));
             }
         }
+        self.say_app_update(&mut v);
         v.push(choice(
             "Search again",
             "Look for TVs on the Wi-Fi again",
@@ -441,6 +442,7 @@ impl App {
         }
         let latest = flows::latest_with_apk(&self.releases);
         let installed = tv.and_then(|t| t.launcher_version.clone());
+        self.say_app_update(&mut v);
         let setup = choice(
             "Set up my TV (recommended)",
             "All in one go: install TV Home, turn off ads and tracking, block ads.",
@@ -1239,6 +1241,25 @@ impl App {
         (rec, opt)
     }
 
+    /// A newer release of this app on GitHub.
+    pub fn app_update(&self) -> Option<&github::Release> {
+        github::newer_app(&self.releases, env!("CARGO_PKG_VERSION"))
+    }
+
+    /// Under the text of the main screens: where to get the newer version of this app.
+    fn say_app_update(&self, v: &mut View) {
+        if let Some(r) = self.app_update() {
+            v.gap();
+            v.color(
+                format!(
+                    "A newer version of this app ({}) is out: https://github.com/{}/releases/latest",
+                    r.version, self.repo
+                ),
+                WARN,
+            );
+        }
+    }
+
     /// (serial, model) of TVs adb already knows.
     fn known_models(&self) -> Vec<(String, String)> {
         self.status
@@ -1285,6 +1306,12 @@ impl App {
                 v.push(Span::styled("● waiting for the TV", Style::new().fg(WARN)))
             }
             _ => v.push(Span::styled("○ no TV connected", Style::new().fg(DIM))),
+        }
+        if let Some(r) = self.app_update() {
+            v.push(Span::styled(
+                format!("  New version {}", r.version),
+                Style::new().fg(WARN),
+            ));
         }
         if self.dry_run {
             v.push(Span::styled(

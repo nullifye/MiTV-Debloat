@@ -11,11 +11,11 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * The bell's notifications, in memory (like Matinee's): Play Store updates, new HDMI/Bluetooth
- * devices and low memory, fed by AlertSources in RemoteService and shown by MainActivity.
+ * The bell's notifications, in memory (like Matinee's): TV Home and Play Store updates, new
+ * HDMI/Bluetooth devices and low memory, fed by AlertSources in RemoteService and shown by MainActivity.
  */
 final class Alerts {
-    static final int PLAY = 0, HDMI = 1, BLUETOOTH = 2, MEMORY = 3;
+    static final int PLAY = 0, HDMI = 1, BLUETOOTH = 2, MEMORY = 3, UPDATE = 4;
     private static final int MAX = 20;
 
     static final class Alert {

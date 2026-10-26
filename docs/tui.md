@@ -52,6 +52,8 @@ Before anything changes, you see a **"Ready to…?"** page listing what will hap
 
 The app remembers your TV, so next time it connects by itself.
 
+**Updates:** when a newer version of this app is on GitHub, the top line says *New version …* with the download link on the main screen. TV Home on the TV tells you about its own updates in the bell (turn that off in TV Home's Settings → Notifications → TV Home updates).
+
 ## What's in the menu
 
 | Choice | What it does |

@@ -21,7 +21,7 @@ final class LauncherSettings {
     static final String ZONE = "prayer_zone", SHOW_PRAYER = "show_prayer", SHOW_USAGE = "show_usage",
             SHOW_SYSTEM = "show_system", SHOW_NOW = "show_now_playing", CLOCK = "clock",
             USAGE_EXCLUDED = "usage_excluded", WALL_DIM = "wallpaper_dim",
-            ALERT_PLAY = "alert_play", ALERT_HDMI = "alert_hdmi", ALERT_BT = "alert_bluetooth",
+            ALERT_UPDATE = "alert_update", ALERT_PLAY = "alert_play", ALERT_HDMI = "alert_hdmi", ALERT_BT = "alert_bluetooth",
             ALERT_MEMORY = "alert_memory", MEMORY_LEVEL = "memory_level", NET_BANNER = "net_banner",
             REMOTE = "remote_on", WALLPAPER = "wallpaper", WEEK_START = "week_start",
             AZAN = "azan", AZAN_TEST = "azan_test",

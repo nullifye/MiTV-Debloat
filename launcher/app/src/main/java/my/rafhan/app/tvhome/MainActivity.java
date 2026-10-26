@@ -1240,7 +1240,8 @@ public class MainActivity extends Activity {
         List<MenuItem> items = new ArrayList<>();
         for (int i = 0; i < Math.min(5, list.size()); i++) {
             Alerts.Alert a = list.get(i);
-            int icon = a.type == Alerts.PLAY ? R.drawable.ic_update : a.type == Alerts.HDMI ? R.drawable.ic_input
+            int icon = a.type == Alerts.PLAY || a.type == Alerts.UPDATE ? R.drawable.ic_update
+                    : a.type == Alerts.HDMI ? R.drawable.ic_input
                     : a.type == Alerts.BLUETOOTH ? R.drawable.ic_bluetooth : R.drawable.ic_ram;
             int color = a.type == Alerts.MEMORY ? 0xFFFFB340 : a.type == Alerts.PLAY ? 0xFF63A4FF : 0xFF63D489;
             String label = a.title + (a.text == null || a.text.isEmpty() ? "" : " — " + a.text) + "  ·  " + ago(a.time);

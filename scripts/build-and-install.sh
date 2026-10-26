@@ -103,6 +103,10 @@ opt appops set $PKG GET_USAGE_STATS allow
 # another app is on screen (Android 10 blocks background activity starts otherwise).
 opt appops set $PKG SYSTEM_ALERT_WINDOW allow
 
+# Updates from GitHub: the bell's "TV Home x.y is available" downloads the release and opens
+# Android's installer, which needs "install unknown apps" for the launcher.
+opt appops set $PKG REQUEST_INSTALL_PACKAGES allow
+
 # Phone remote Back/Home in any app: enable our accessibility service next to whatever is
 # already enabled (Button Mapper), never replacing it. The flag itself is recorded the first time
 # so restore.sh can put it back (it is 1 only because a service is enabled).

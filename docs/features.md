@@ -37,12 +37,13 @@ The top bar is four round icon buttons: **bell**, **Inputs**, **Wi-Fi**, **Setti
 
 | Source | How it's detected | OK opens |
 |---|---|---|
+| TV Home updates | A newer release on GitHub (`releases/latest`, so never a draft or pre-release), checked a minute after the launcher starts and every 6 h. A banner shows once per version. | The update: TV Home downloads the release APK, checks its size and SHA-256, and opens Android's installer. Choose **Update**: settings are kept, because Android only accepts an update signed with the same key. It needs "install unknown apps" for TV Home: the setup app and `build-and-install.sh` allow it, otherwise TV Home asks once. |
 | Play Store updates | The Play Store's own "updates available" notifications (channels `updates-available` / `UPDATES`), read from `dumpsys notification` at start and every 6 h. A notification listener, which this TV refuses, would be the usual way, so the launcher needs `DUMP` + `PACKAGE_USAGE_STATS` instead, granted by `build-and-install.sh`. | Play Store |
 | New HDMI device | HDMI-CEC devices (child inputs under an HDMI port) that appear after start-up. Needs a CEC-capable device. | That HDMI input |
 | Bluetooth | A device connecting, or staying disconnected for 2 min. The TV remote and quick reconnects are ignored. | Bluetooth settings |
 | Low memory | RAM use above 85 %, checked every minute while the screen is on. Re-arms below 80 %. | TV Manager |
 
-Device and memory alerts also slide in a short banner over any app. The list is kept in memory, so it starts empty after the launcher restarts.
+Device and memory alerts, and a new TV Home version, also slide in a short banner over any app. The list is kept in memory, so it starts empty after the launcher restarts.
 
 ## Connection indicator
 
@@ -102,7 +103,7 @@ The gear at the end of the top bar opens the launcher's Settings: categories on 
 | Home screen | Clock Auto / 12-hour / 24-hour, System card, Now Playing card, wallpaper dim (Off/Low/Medium/High), wallpaper (Bing daily photo, seven built-in photos, your pictures or none). A hidden card's column closes up. |
 | Prayer times | Zone (picker), prayer card on/off, azan on/off, reminder before prayer (Off / 5 / 10 / 15 / 30 min), play azan now |
 | Most used | Most used card on/off, week starts on (Monday / Sunday), leave out (app picker) |
-| Notifications | Play Store updates, new HDMI devices, Bluetooth, low memory (each on/off), low-memory level 80/85/90 %, connection banner |
+| Notifications | TV Home updates, Play Store updates, new HDMI devices, Bluetooth, low memory (each on/off), low-memory level 80/85/90 %, connection banner |
 | Info overlay | Show over apps on/off (off by default), what the left, centre and right show (network speed / uptime / clock / elapsed time / nothing), position (top / bottom), text size (small / medium / large), background on/off |
 | Phone remote | Remote on/off (the banner and bell keep working when it's off), its address, forget all paired phones (press OK twice) |
 | Running apps | Apps hidden from the running-apps screen; OK shows one again |
