@@ -287,7 +287,7 @@ pub fn install(env: &mut Env, src: &ApkSource, handover: bool) -> Result<Plan> {
     p.push(set_home(&adb));
 
     if handover {
-        handover_steps(env, &mut p, stock.as_deref());
+        handover_steps(env, &mut p, stock.as_deref())?;
     }
 
     // In plain words for the confirmation page.
@@ -537,53 +537,99 @@ pub fn debugging_off(env: &mut Env) -> Plan {
     p
 }
 
-/// Google TV: setup app first (unless it owns the Wi-Fi network), then the stock launcher.
-fn handover_steps(env: &mut Env, p: &mut Plan, stock: Option<&str>) {
+/// Hands Home over to TV Home. Android sends Home to the Home app with the highest priority, and
+/// only between equals to the one chosen with set-home-activity. An installed launcher gets 0;
+/// Google TV's launcher has 2 and its setup app 1. So every enabled Home app above 0 is switched
+/// off, the setup app first, plus the TV's recorded launcher.
+///
+/// Refuses (before anything changes) when the setup app made the TV's Wi-Fi connection: Android
+/// deletes an app's networks when it's disabled, and leaving it on means Home lands on its
+/// setup screen instead.
+fn handover_steps(env: &mut Env, p: &mut Plan, stock: Option<&str>) -> Result<()> {
     let adb = env.adb.clone();
     let enabled = env.installed(&["-e"]);
-    if enabled.contains(GTV_SETUP) {
-        if device::wifi_owned_by_setup(&env.text(&["dumpsys", "wifi"])) {
-            p.warnings.push(
-                "Google TV setup owns your saved Wi-Fi network, so it's left on (disabling it would delete \
-                 the network). Forget the network in Settings, join it again, then run the handover again."
-                    .into(),
+    let homes = device::parse_home_priorities(&env.text(&[
+        "cmd",
+        "package",
+        "query-activities",
+        "--brief",
+        "-a",
+        "android.intent.action.MAIN",
+        "-c",
+        "android.intent.category.HOME",
+    ]));
+    let mut candidates: Vec<&str> = homes
+        .iter()
+        .filter(|(_, prio)| *prio > 0)
+        .map(|(c, _)| device::package_of(c))
+        .collect();
+    candidates.extend(stock.map(device::package_of));
+    if candidates.is_empty() {
+        candidates.push(GTV_LAUNCHER);
+    }
+    let mut off: Vec<String> = Vec::new();
+    for pkg in candidates {
+        if pkg != PKG && enabled.contains(pkg) && !off.iter().any(|o| o == pkg) {
+            off.push(pkg.to_string());
+        }
+    }
+    // The setup app first: with the launcher gone first, Home would land on setup.
+    off.sort_by_key(|p| p != GTV_SETUP);
+
+    if off.iter().any(|p| p == GTV_SETUP) {
+        let nets = device::wifi_networks_made_by_setup(&env.text(&["dumpsys", "wifi"]));
+        if !nets.is_empty() {
+            let name = match nets.iter().find(|n| *n != "?") {
+                Some(n) => format!("\"{n}\""),
+                None => "your Wi-Fi".to_string(),
+            };
+            bail!(
+                "One thing to fix on the TV first.\n\n\
+                 Google TV's setup app made this TV's Wi-Fi connection ({name}), and it also takes over \
+                 the Home button. TV Home can only become the home screen with that app switched off, \
+                 but switching it off would delete the Wi-Fi connection. Nothing was changed.\n\n\
+                 Fix it once, with the TV remote:\n\
+                 \x20 1. Settings → Network & Internet → {name} → Forget network.\n\
+                 \x20 2. Choose {name} again and type the Wi-Fi password.\n\n\
+                 The TV leaves the Wi-Fi for a moment, so this app loses it: choose \"Use a different TV\" \
+                 to connect again, then run this again.\n\n\
+                 (To install TV Home without making it the home screen, untick \"This TV has Google TV\".)"
             );
+        }
+        p.notes.push(
+            "Google TV setup will be disabled: phone casting may stop after a reboot while it's off. \
+             Restore turns it back on (do that before any factory reset)."
+                .into(),
+        );
+    }
+
+    let cat = crate::catalog::Catalog::builtin();
+    let mut changed = false;
+    for pkg in &off {
+        if cat.get(pkg).map(|e| e.advice) == Some(crate::catalog::Advice::Never) {
+            p.warnings.push(format!(
+                "{} answers Home ahead of TV Home, but the TV needs it, so it's left on: Home may keep opening it.",
+                device::friendly_app_name(pkg)
+            ));
+            continue;
+        }
+        let label = if pkg == GTV_SETUP {
+            "Disable Google TV setup (it also answers Home)".to_string()
+        } else if Some(pkg.as_str()) == stock.map(device::package_of) || pkg == GTV_LAUNCHER {
+            format!("Disable the TV's own launcher ({pkg})")
         } else {
-            p.notes.push(
-                "Google TV setup will be disabled: phone casting may stop after a reboot while it's off. \
-                 Restore turns it back on (do that before any factory reset)."
-                    .into(),
-            );
-            p.push(disable_step(
-                &adb,
-                GTV_SETUP,
-                "Disable Google TV setup (it also answers Home)".into(),
-            ));
-        }
+            format!("Disable {pkg} (it answers Home ahead of TV Home)")
+        };
+        p.push(disable_step(&adb, pkg, label));
+        changed = true;
     }
-    let stock_pkg = stock
-        .map(device::package_of)
-        .filter(|s| *s != PKG)
-        .map(str::to_string)
-        .or_else(|| {
-            enabled
-                .contains(GTV_LAUNCHER)
-                .then(|| GTV_LAUNCHER.to_string())
-        });
-    match stock_pkg {
-        Some(s) if enabled.contains(&s) => {
-            p.push(disable_step(
-                &adb,
-                &s,
-                format!("Disable the TV's own launcher ({s})"),
-            ));
-            p.push(set_home(&adb).optional());
-        }
-        Some(s) => p.notes.push(format!("{s} is already disabled.")),
-        None => p
-            .warnings
-            .push("The TV's own launcher isn't known, so it's left on.".into()),
+    if changed {
+        p.push(set_home(&adb).optional());
+    } else if stock.is_none() {
+        p.warnings
+            .push("The TV's own launcher isn't known, so it's left on.".into());
     }
+    Ok(())
 }
 
 /// Uninstall the launcher (only this project's own package is ever uninstalled).
@@ -1039,6 +1085,9 @@ mod tests {
         d
     }
 
+    /// `query-activities` on a Sony Google TV with TV Home installed.
+    const SONY_HOMES: &str = "5 activities found:\n  Activity #0:\n    priority=2 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n    com.google.android.apps.tv.launcherx/.home.HomeActivity\n  Activity #1:\n    priority=1 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n    com.google.android.tungsten.setupwraith/.RecoveryActivity\n  Activity #2:\n    priority=0 preferredOrder=0\n    my.rafhan.app.tvhome/.MainActivity\n  Activity #3:\n    priority=-1000 preferredOrder=0\n    com.android.tv.settings/.system.FallbackHome\n";
+
     fn lines(p: &Plan) -> Vec<String> {
         p.steps.iter().map(|s| s.command_line()).collect()
     }
@@ -1167,6 +1216,7 @@ mod tests {
         let store = Store::at(&d);
         let r = FakeRunner::new()
             .on("getprop ro.build.version.sdk", "34\n")
+            .on("query-activities", SONY_HOMES)
             .on("resolve-activity", "com.google.android.apps.tv.launcherx/.home.HomeActivity\n")
             .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\n")
             .on("dumpsys wifi", "Network cname=com.android.settings x\n");
@@ -1192,14 +1242,15 @@ mod tests {
     }
 
     #[test]
-    fn google_tv_handover_skips_setup_when_it_owns_wifi() {
+    fn google_tv_handover_stops_when_setup_made_the_wifi() {
         let d = tmp("gtvwifi");
         let store = Store::at(&d);
         let r = FakeRunner::new()
             .on("getprop ro.build.version.sdk", "34\n")
             .on("resolve-activity", "com.google.android.apps.tv.launcherx/.home.HomeActivity\n")
+            .on("query-activities", SONY_HOMES)
             .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\n")
-            .on("dumpsys wifi", "cname=com.google.android.tungsten.setupwraith\n");
+            .on("dumpsys wifi", "ID: 4 SSID: \"azmazali_5G\" PROVIDER-NAME: null\n cname=com.google.android.tungsten.setupwraith\n");
         let mut emit = |_e: EngineEvent| {};
         let mut env = Env {
             adb: &adb(),
@@ -1207,9 +1258,49 @@ mod tests {
             store: &store,
             emit: &mut emit,
         };
-        let p = install(&mut env, &local_apk(&d), true).unwrap();
-        assert!(!lines(&p).iter().any(|x| x.contains(GTV_SETUP)));
-        assert!(p.warnings.iter().any(|w| w.contains("Wi-Fi")));
+        // Leaving setup on means Home lands on its setup screen: don't start at all.
+        let e = install(&mut env, &local_apk(&d), true)
+            .unwrap_err()
+            .to_string();
+        assert!(e.contains("\"azmazali_5G\" → Forget network"), "{e}");
+        assert!(e.contains("Nothing was changed"));
+        // Without the handover it still installs.
+        assert!(install(&mut env, &local_apk(&d), false).is_ok());
+    }
+
+    #[test]
+    fn handover_switches_off_every_home_app_above_tv_home() {
+        let d = tmp("gtvprio");
+        let store = Store::at(&d);
+        let homes = format!(
+            "{SONY_HOMES}  Activity #4:\n    priority=1 preferredOrder=0\n    com.sony.dtv.someotherhome/.Home\n"
+        );
+        let r = FakeRunner::new()
+            .on("getprop ro.build.version.sdk", "34\n")
+            .on("resolve-activity", "com.google.android.apps.tv.launcherx/.home.HomeActivity\n")
+            .on("query-activities", &homes)
+            .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\npackage:com.sony.dtv.someotherhome\npackage:com.android.tv.settings\n")
+            .on("dumpsys wifi", "SSID: \"home\"\n cname=android.uid.system:1000\n");
+        let mut emit = |_e: EngineEvent| {};
+        let mut env = Env {
+            adb: &adb(),
+            runner: &r,
+            store: &store,
+            emit: &mut emit,
+        };
+        let l = lines(&install(&mut env, &local_apk(&d), true).unwrap());
+        let off: Vec<&str> = l
+            .iter()
+            .filter_map(|x| x.split("disable-user --user 0 ").nth(1))
+            .collect();
+        assert_eq!(
+            off,
+            vec![GTV_SETUP, GTV_LAUNCHER, "com.sony.dtv.someotherhome"]
+        );
+        assert!(
+            !l.iter()
+                .any(|x| x.contains("disable-user --user 0 com.android.tv.settings"))
+        );
     }
 
     #[test]

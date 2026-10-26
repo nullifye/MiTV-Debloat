@@ -140,9 +140,13 @@ if [ "${1:-}" = "--disable-stock" ]; then
   if printf '%s\n' "$ENABLED" | grep -qx "package:$SETUP"; then
     WIFI="$(A shell dumpsys wifi | tr -d '\r' | grep -o 'cname=[^ ]*' || true)"
     if printf '%s\n' "$WIFI" | grep -q setupwraith; then
-      echo "note: $SETUP (Google TV setup) owns the saved Wi-Fi network, so it was left on: disabling it"
-      echo "      would delete the network. In Settings, forget the Wi-Fi network and join it again (or use"
-      echo "      Ethernet), then run this again."
+      # Leaving setup on and disabling the launcher would send Home to setup's recovery screen,
+      # so stop here: TV Home is installed, Home still opens Google TV's launcher.
+      echo "Google TV's setup app made this TV's Wi-Fi connection, so it can't be disabled (that would"
+      echo "delete the connection), and while it's on, Home can't be handed to this launcher. Nothing"
+      echo "was disabled. On the TV: Settings -> Network & Internet -> your Wi-Fi -> Forget network, then"
+      echo "join it again with its password (or use Ethernet), and run this again."
+      exit 1
     else
       scripts/disable.sh "$SETUP"
     fi

@@ -114,6 +114,28 @@ pub fn is_recordable_stock_home(component: &str) -> bool {
         && component.contains('/')
 }
 
+/// Home apps with their priority, from `cmd package query-activities --brief …`: each component
+/// line follows a `priority=N …` line. Android sends Home to the highest priority; only between
+/// equals does the choice made with `set-home-activity` count. Installed apps get 0, Google TV's
+/// launcher 2 and its setup app 1.
+pub fn parse_home_priorities(out: &str) -> Vec<(String, i32)> {
+    let mut prio = 0;
+    let mut v = Vec::new();
+    for l in out.lines().map(str::trim) {
+        if let Some(rest) = l.strip_prefix("priority=") {
+            prio = rest
+                .split_whitespace()
+                .next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
+        } else if l.contains('/') && !l.contains(' ') {
+            v.push((l.to_string(), prio));
+            prio = 0;
+        }
+    }
+    v
+}
+
 /// Components listed by `cmd package query-activities --brief …` (lines containing `/`).
 pub fn parse_components(out: &str) -> Vec<String> {
     out.lines()
@@ -185,12 +207,29 @@ pub fn a11y_without_ours(current: Option<&str>) -> Option<String> {
     (joined != c).then_some(joined)
 }
 
-/// `dumpsys wifi` lines with `cname=<package>`: the apps that created saved networks. If Google
-/// TV's setup app created one, disabling it would delete that network.
-pub fn wifi_owned_by_setup(dump: &str) -> bool {
-    dump.split_whitespace()
-        .filter_map(|t| t.strip_prefix("cname="))
-        .any(|c| c.contains("setupwraith"))
+/// The saved Wi-Fi networks Google TV's setup app created (`cname=` in `dumpsys wifi`, under the
+/// network's `SSID: "…"` line). Android deletes an app's networks when the app is disabled, so
+/// disabling the setup app would take the TV off these. `?` when the name couldn't be read.
+pub fn wifi_networks_made_by_setup(dump: &str) -> Vec<String> {
+    let mut ssid: Option<String> = None;
+    let mut v: Vec<String> = Vec::new();
+    for l in dump.lines() {
+        if let Some(i) = l.find("SSID: \"") {
+            let rest = &l[i + 7..];
+            ssid = rest.find('"').map(|j| rest[..j].to_string());
+        }
+        let made_by_setup = l
+            .split_whitespace()
+            .filter_map(|t| t.strip_prefix("cname="))
+            .any(|c| c.contains("setupwraith"));
+        if made_by_setup {
+            let name = ssid.clone().unwrap_or_else(|| "?".into());
+            if !v.contains(&name) {
+                v.push(name);
+            }
+        }
+    }
+    v
 }
 
 /// The package part of `settings get secure default_input_method` (`pkg/.Service`).
@@ -488,10 +527,42 @@ mod tests {
 
     #[test]
     fn wifi_owner() {
-        assert!(wifi_owned_by_setup(
-            "x cname=com.google.android.tungsten.setupwraith y"
-        ));
-        assert!(!wifi_owned_by_setup("cname=com.android.settings"));
+        let dump = "  , 0=ID: 0 SSID: \"OPPO A5pro 5G\" PROVIDER-NAME: null\n cuid=1000 cname=android.uid.system:1000 luid=1000\n\
+                    , 4=* ID: 4 SSID: \"azmazali_5G\" PROVIDER-NAME: null\n cuid=10123 cname=com.google.android.tungsten.setupwraith luid=1000\n\
+                    mPerID… ID: 4 SSID: \"azmazali_5G\"\n cname=com.google.android.tungsten.setupwraith\n";
+        assert_eq!(wifi_networks_made_by_setup(dump), vec!["azmazali_5G"]);
+        assert_eq!(
+            wifi_networks_made_by_setup("x cname=com.google.android.tungsten.setupwraith y"),
+            vec!["?"]
+        );
+        assert!(
+            wifi_networks_made_by_setup("SSID: \"home\"\ncname=com.android.settings").is_empty()
+        );
+    }
+
+    #[test]
+    fn home_priorities() {
+        let out = "5 activities found:\n  Activity #0:\n    priority=2 preferredOrder=0 match=0x108000 specificIndex=-1 isDefault=true\n    com.google.android.apps.tv.launcherx/.home.HomeActivity\n  Activity #1:\n    priority=1 preferredOrder=0 match=0x108000\n    com.google.android.tungsten.setupwraith/.RecoveryActivity\n  Activity #2:\n    priority=0 preferredOrder=0\n    my.rafhan.app.tvhome/.MainActivity\n  Activity #3:\n    priority=-1000 preferredOrder=0\n    com.android.tv.settings/.system.FallbackHome\n";
+        assert_eq!(
+            parse_home_priorities(out),
+            vec![
+                (
+                    "com.google.android.apps.tv.launcherx/.home.HomeActivity".to_string(),
+                    2
+                ),
+                (
+                    "com.google.android.tungsten.setupwraith/.RecoveryActivity".to_string(),
+                    1
+                ),
+                ("my.rafhan.app.tvhome/.MainActivity".to_string(), 0),
+                (
+                    "com.android.tv.settings/.system.FallbackHome".to_string(),
+                    -1000
+                ),
+            ]
+        );
+        // Plain lists (older Android): priority unknown, taken as 0.
+        assert_eq!(parse_home_priorities("com.a/.Home\n")[0].1, 0);
     }
 
     #[test]
