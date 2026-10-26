@@ -4,6 +4,7 @@ import android.app.AppOpsManager;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.content.Context;
+import android.os.Build;
 import android.os.Process;
 
 import org.json.JSONObject;
@@ -33,7 +34,8 @@ import java.util.Set;
  * an app that keeps playing with the screen elsewhere (RadioStream) counts its playback. Visible,
  * not "foreground": Live TV showing HDMI is visible but barely counts as foreground. Service time
  * only counts on days the app was on screen: on this TV a group of always-on services (Live TV,
- * MiLink, overlays) log identical whole-day service times that aren't use.
+ * MiLink, overlays) log identical whole-day service times that aren't use. Android 8 and 9 only
+ * report foreground time, so that's the day's time there.
  *
  * The launcher keeps its own copy of each day's times for the last 7 days (files/usage-history.json). This TV has no
  * clock battery: after a power cut it boots in 1974 until network time fixes the clock, and
@@ -51,8 +53,10 @@ final class UsageScores {
 
     static boolean granted(Context ctx) {
         AppOpsManager ops = ctx.getSystemService(AppOpsManager.class);
-        return ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(),
-                ctx.getPackageName()) == AppOpsManager.MODE_ALLOWED;
+        int mode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                ? ops.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), ctx.getPackageName())
+                : ops.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, Process.myUid(), ctx.getPackageName());
+        return mode == AppOpsManager.MODE_ALLOWED;
     }
 
     /** Use this week (Most used card) and all time (grid order). */
@@ -90,11 +94,17 @@ final class UsageScores {
         List<UsageStats> stats = ctx.getSystemService(UsageStatsManager.class)
                 .queryUsageStats(UsageStatsManager.INTERVAL_DAILY, begin, System.currentTimeMillis());
         if (stats != null) for (UsageStats u : stats) {
-            long visible = u.getTotalTimeVisible();
-            // Background playback only counts on days the app was also on screen: always-on
-            // services (overlays, system helpers) otherwise rack up whole days of "use".
-            long playback = visible > 0 ? u.getTotalTimeForegroundServiceUsed() : 0;
-            long time = Math.max(visible, playback);
+            long time;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                long visible = u.getTotalTimeVisible();
+                // Background playback only counts on days the app was also on screen: always-on
+                // services (overlays, system helpers) otherwise rack up whole days of "use".
+                long playback = visible > 0 ? u.getTotalTimeForegroundServiceUsed() : 0;
+                time = Math.max(visible, playback);
+            } else {
+                // Android 8 and 9 only have foreground time (no visible / playback split).
+                time = u.getTotalTimeInForeground();
+            }
             if (time <= 0) continue;
             long mid = u.getFirstTimeStamp() / 2 + u.getLastTimeStamp() / 2;
             LocalDate day = Instant.ofEpochMilli(mid).atZone(zone).toLocalDate();

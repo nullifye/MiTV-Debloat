@@ -116,6 +116,7 @@ The gear at the end of the top bar opens the launcher's Settings: categories on 
 - **How time is counted, per day:**
   - **Visible time.** This counts watching HDMI or tuner through Live TV, which Android barely counts as "foreground".
   - **Background playback (e.g. RadioStream audio)**, but only on days the app was also on screen. On this TV a group of always-on services, such as an overlay app, MiLink and Live TV's service, log identical whole-day service times that aren't real use.
+  - **On Android 8 and 9** (e.g. an older Mi Box), Android only reports foreground time, so that's what counts. Background playback isn't counted there.
 - **Excluded apps:** Live TV (`com.mediatek.wwtv.tvcenter`) is left out of the ranking. It's only the screen for HDMI, AV and the antenna, so its time is input-watching time, not app use. It isn't on the card or in its total. Leaving an app out only affects the card: the grid still ranks it by its use. To leave out more apps, tick them in **Settings → Most used → Leave out** (`usage_excluded` in apps.xml is only the default).
 - **Usage access:** granted by `scripts/build-and-install.sh` with `adb shell appops set my.rafhan.app.tvhome GET_USAGE_STATS allow`. Without it the card shows that command and the grid stays A–Z.
 - **History:** the launcher keeps its own copy of each day's times for the last 7 days (`files/usage-history.json`), which always includes the week's first day whichever day it starts, because this TV has no clock battery: after a power cut it boots thinking it's 1974 until internet time fixes the clock, and that jump pushes Android's own usage history out of the week. The copy is only saved while the clock is right, and each day counts whichever is larger, the copy or Android's figure. Standby doesn't affect any of this; only a real power-off does.
@@ -128,7 +129,7 @@ The card sits under the pills, starting at the Inputs pill. It shows:
 | Row | Cells |
 |---|---|
 | 1 | CPU clock (average of the cores), RAM used/installed (2 GB; the ~250 MB the firmware reserves for video counts as used), storage used/total for the whole 16 GB chip as in Settings (system partitions count as used), uptime |
-| 2 | IP address, Wi-Fi signal (dBm and link speed), Private DNS, USB debugging |
+| 2 | IP address, Wi-Fi signal (dBm and link speed), Private DNS (Android 9+), USB debugging |
 
 - **Bars:** RAM and storage turn amber over 80% and red over 92%.
 - **USB debugging:** shows amber **ON :5555** while network ADB is open, and green **OFF** once you switch it off. It updates the moment the setting changes.
@@ -238,7 +239,7 @@ Open **http://\<TV IP\>:8486** on your phone, on the same Wi-Fi (Settings → Ph
 
 **Set up by `scripts/build-and-install.sh`:**
 - Overlay permission (`appops … SYSTEM_ALERT_WINDOW allow`). It shows the PIN, and Android 10 needs it before the remote can open apps while another app is on screen.
-- Storage permissions for the Files tab. On Android 10 that's `READ`/`WRITE_EXTERNAL_STORAGE` (plus `requestLegacyExternalStorage`); on Android 11+ the script also grants **All files access** (`appops … MANAGE_EXTERNAL_STORAGE allow`), since scoped storage otherwise blocks the Files tab, the `Wallpapers` folder and reading screenshots.
+- Storage permissions for the Files tab. On Android 8–10 that's `READ`/`WRITE_EXTERNAL_STORAGE` (plus `requestLegacyExternalStorage`); on Android 11+ the script also grants **All files access** (`appops … MANAGE_EXTERNAL_STORAGE allow`), since scoped storage otherwise blocks the Files tab, the `Wallpapers` folder and reading screenshots.
 - The accessibility service, appended next to Button Mapper's. If the Back button says it needs the accessibility service, re-run the script or enable "Home phone remote" in Settings → Device Preferences → Accessibility.
 
 **Security:**

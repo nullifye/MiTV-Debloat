@@ -1358,7 +1358,7 @@ fn how_to() -> View {
     v.say("     \"My TV shows a pairing code\" on the previous screen.");
     v.say("  5. Note the TV's IP address: Settings → Network & Internet → your Wi-Fi.");
     v.gap();
-    v.dim("The TV must run Android TV or Google TV 10 or newer, and be on the same Wi-Fi as this computer.");
+    v.dim("The TV must run Android TV or Google TV 8.0 or newer, and be on the same Wi-Fi as this computer.");
     v.push(first(choice("Back", "", Act::Back)));
     v
 }
@@ -1456,7 +1456,7 @@ pub fn friendly_error(reason: &str) -> String {
     } else if r.contains("space") || r.contains("storage") {
         "The TV is out of storage space. Remove an app you don't need and try again.".into()
     } else if r.contains("older_sdk") || r.contains("sdk") {
-        "This TV's Android version is too old for TV Home (it needs Android 10 or newer).".into()
+        "This TV's Android version is too old for TV Home (it needs Android 8.0 or newer).".into()
     } else {
         "It didn't finish. Nothing important was left half-done; you can try again.".into()
     }

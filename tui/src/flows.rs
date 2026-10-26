@@ -189,8 +189,8 @@ pub fn install(env: &mut Env, src: &ApkSource, handover: bool) -> Result<Plan> {
     if sdk == 0 {
         bail!("couldn't read the TV's Android version: is it connected?");
     }
-    if sdk < 29 {
-        bail!("the TV runs Android SDK {sdk}; the launcher needs Android 10 (SDK 29) or newer");
+    if sdk < 26 {
+        bail!("the TV runs Android SDK {sdk}; the launcher needs Android 8.0 (SDK 26) or newer");
     }
     let mut p = Plan::new(format!("Install {name}"));
     p.notes.push(format!(
@@ -1162,6 +1162,41 @@ mod tests {
             Some("com.google.android.tvlauncher/.MainActivity")
         );
         assert_eq!(store.a11y_before().as_deref(), Some("1"));
+    }
+
+    #[test]
+    fn android_8_and_9_boxes_install_older_ones_are_refused() {
+        let d = tmp("minsdk");
+        let store = Store::at(&d);
+        for (sdk, ok) in [("28", true), ("26", true), ("25", false)] {
+            let r = FakeRunner::new()
+                .on("getprop ro.build.version.sdk", &format!("{sdk}\n"))
+                .on("pm install", "Success\n");
+            let mut emit = |_e: EngineEvent| {};
+            let mut env = Env {
+                adb: &adb(),
+                runner: &r,
+                store: &store,
+                emit: &mut emit,
+            };
+            match install(&mut env, &local_apk(&d), false) {
+                Ok(p) => {
+                    assert!(ok, "SDK {sdk} should be refused");
+                    let l = lines(&p).join("\n");
+                    assert!(
+                        !l.contains("MANAGE_EXTERNAL_STORAGE") && !l.contains("BLUETOOTH_CONNECT")
+                    );
+                }
+                Err(e) => {
+                    assert!(!ok, "SDK {sdk} should install: {e}");
+                    assert!(e.to_string().contains("Android 8.0 (SDK 26)"));
+                    assert!(
+                        crate::screens::friendly_error(&e.to_string())
+                            .contains("Android 8.0 or newer")
+                    );
+                }
+            }
+        }
     }
 
     #[test]

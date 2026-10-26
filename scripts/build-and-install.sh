@@ -1,6 +1,6 @@
 #!/bin/bash
 # Build the Apple TV style launcher, install it on the TV and make it the default home screen.
-# Works on any Android TV / Google TV 10 or newer, from macOS, Linux or Windows (Git Bash).
+# Works on any Android TV / Google TV 8.0 or newer, from macOS, Linux or Windows (Git Bash).
 # Usage: TV=<ip> scripts/build-and-install.sh [--disable-stock]
 #   TV=<ip>          the TV's address, needed the first time only (saved in .tv)
 #   --disable-stock  also disables the TV's own launcher, and on Google TV its setup app (both
@@ -31,7 +31,7 @@ SDK_DIR="$(sed -n 's/^sdk\.dir=//p' launcher/local.properties 2>/dev/null || tru
 SDK_DIR="${SDK_DIR:-${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}}"
 [ -n "$SDK_DIR" ] && [ -d "$SDK_DIR" ] || die "Android SDK not found: set ANDROID_HOME ($DOCS)."
 
-# ---- the TV: reachable, authorised, Android 10+
+# ---- the TV: reachable, authorised, Android 8.0+
 adb connect "$TV" >/dev/null || true
 STATE="$(adb -s "$TV" get-state 2>&1 || true)"
 case "$STATE" in
@@ -41,7 +41,7 @@ case "$STATE" in
 esac
 echo "$TV" > .tv   # reached it: the next runs (and the other scripts) don't need TV=
 SDK="$(A shell getprop ro.build.version.sdk | tr -d '\r')"
-[ "${SDK:-0}" -ge 29 ] 2>/dev/null || die "the TV runs Android SDK ${SDK:-?}; this launcher needs Android 10 (SDK 29) or newer."
+[ "${SDK:-0}" -ge 26 ] 2>/dev/null || die "the TV runs Android SDK ${SDK:-?}; this launcher needs Android 8.0 (SDK 26) or newer."
 
 # ---- remember the TV's own launcher before replacing it (any brand), for --disable-stock and
 # restore.sh, in this TV's backup/<serial>/. Older setups recorded it in home-default.txt.

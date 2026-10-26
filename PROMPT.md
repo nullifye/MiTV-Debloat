@@ -56,7 +56,7 @@ Optional speed tweaks (ask first, log each one so restore.sh undoes it)
 
 Launcher
 - First check the TV's SDK level (`getprop ro.build.version.sdk`) and that it accepts sideloaded APKs.
-- Native Android, Java, no Kotlin, no Compose, no Leanback library. AndroidX RecyclerView only. `minSdk` = the TV's SDK, `targetSdk` 36 (some Google TV 14 sets refuse old targets). R8 release build with `shrinkResources`, signed with the debug key so reinstalls upgrade in place. Aim for an APK under about 0.6 MB.
+- Native Android, Java, no Kotlin, no Compose, no Leanback library. AndroidX RecyclerView only. `minSdk` 26 (Android 8.0, the lowest where every feature works; newer calls get a version check), `targetSdk` 36 (some Google TV 14 sets refuse old targets). R8 release build with `shrinkResources`, signed with the debug key so reinstalls upgrade in place. Aim for an APK under about 0.6 MB.
 - HOME + LEANBACK_LAUNCHER intent filters, `singleTask`, landscape. Add `<queries>` for LEANBACK_LAUNCHER and LAUNCHER intents or the app grid comes up empty on Android 11+.
 - Look: dark background or a wallpaper (see below), the Outfit variable font (SIL OFL) bundled in assets, rounded banner tiles. One translucent "glass" focus highlight that springs to the focused tile, and only runs frame callbacks while it moves.
 - Layout, top to bottom:

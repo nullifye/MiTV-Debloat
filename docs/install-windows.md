@@ -10,7 +10,7 @@ Other guides: [macOS](install-macos.md) · [Linux](install-linux.md) · [with an
 
 ## 1. Prepare the TV
 
-The TV must run **Android TV or Google TV 10 or newer**. It was developed and tested on a Xiaomi Mi TV; other Android TV brands should work (see [TV brands](#tv-brands)).
+The TV must run **Android TV or Google TV 8.0 or newer**. It was developed and tested on a Xiaomi Mi TV; other Android TV brands should work (see [TV brands](#tv-brands)).
 
 1. **Check the Android version:** Settings → Device Preferences (or System) → About → *Android TV OS version*. It must be 10 or higher.
 2. **Turn on Developer options:** on the same About screen, press OK on **Build** (Google TV: *Android TV OS build*) seven times, until it says you're a developer.

@@ -16,7 +16,7 @@ MiTV-Debloat/
 │   ├── stock-home.txt           the TV's own launcher, recorded by build-and-install.sh (restore.sh returns to it)
 │   ├── home-default.txt, home-candidates.txt, accessibility.txt, accessibility-enabled-before.txt, private-dns-before.txt
 │   └── dumpsys/                 activities/services of every manufacturer package that was checked
-├── launcher/                    the launcher source (Java, AndroidX RecyclerView, minSdk 29, targetSdk 36), incl. the phone remote
+├── launcher/                    the launcher source (Java, AndroidX RecyclerView, minSdk 26, targetSdk 36), incl. the phone remote
 │   ├── app/src/main/            the launcher, the phone remote page (assets/remote.html) and its resources
 │   └── app/src/test/            unit tests for the pure logic (no TV or emulator needed)
 ├── tui/                         the terminal app (Rust, ratatui): connect, install from Releases, debloat, tweaks, restore

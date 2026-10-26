@@ -1,6 +1,6 @@
 # Mi TV debloat + Apple TV style launcher
 
-A fast, minimal home screen for **Android TV and Google TV** (Android 10 or newer), with prayer times, a live system card, Now Playing, a running-apps screen and a phone remote. It was built on a Xiaomi Mi TV, which was also [debloated](docs/xiaomi-debloat.md).
+A fast, minimal home screen for **Android TV and Google TV** (Android 8.0 or newer), with prayer times, a live system card, Now Playing, a running-apps screen and a phone remote. It was built on a Xiaomi Mi TV, which was also [debloated](docs/xiaomi-debloat.md).
 
 **Install it on your TV:** [Windows](docs/install-windows.md) · [macOS](docs/install-macos.md) · [Linux](docs/install-linux.md) · [with an AI agent](docs/install-with-ai-agent.md)
 
@@ -86,7 +86,7 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
 
 ## Install
 
-You need an Android TV or Google TV running Android 10 or newer, and a computer on the same Wi-Fi. The scripts build the launcher, install it over network ADB and make it the home screen; they work with any TV brand.
+You need an Android TV or Google TV running Android 8.0 or newer, and a computer on the same Wi-Fi. The scripts build the launcher, install it over network ADB and make it the home screen; they work with any TV brand.
 
 - Easiest: the **setup app** ([docs/tui.md](docs/tui.md)). One download for Windows, macOS or Linux, nothing else to install. It finds your TV on the Wi-Fi, installs TV Home, cleans up the TV and can undo everything, explaining each step before it runs.
 - Step by step: [Windows](docs/install-windows.md) · [macOS](docs/install-macos.md) · [Linux](docs/install-linux.md)

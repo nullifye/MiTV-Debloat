@@ -7,7 +7,7 @@ Manual guides: [Windows](install-windows.md) · [macOS](install-macos.md) · [Li
 ## What you need
 
 - **An AI coding agent with terminal access:** one that runs in your terminal, desktop or code editor and can execute commands on your computer. A chat assistant in a web browser can't reach your TV.
-- **The TV prepared:** Developer options and USB debugging on, and its IP address noted. Follow step 1, *Prepare the TV*, in any of the manual guides. The TV must run Android TV or Google TV 10 or newer.
+- **The TV prepared:** Developer options and USB debugging on, and its IP address noted. Follow step 1, *Prepare the TV*, in any of the manual guides. The TV must run Android TV or Google TV 8.0 or newer.
 - **The computer and the TV on the same Wi-Fi**, and the TV remote nearby: the TV asks you to allow the computer the first time.
 
 ## Option A: install this launcher (quick)

@@ -10,6 +10,7 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.Build;
 import android.os.Environment;
 import android.os.StatFs;
 import android.os.storage.StorageManager;
@@ -107,9 +108,12 @@ final class SysInfo {
                     break;
                 }
             }
-            String host = lp.getPrivateDnsServerName();
-            n.dnsHost = TextUtils.isEmpty(host) ? null : host;
-            n.dnsAuto = n.dnsHost == null && lp.isPrivateDnsActive();
+            // Private DNS arrived in Android 9: on 8 there's none to show.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                String host = lp.getPrivateDnsServerName();
+                n.dnsHost = TextUtils.isEmpty(host) ? null : host;
+                n.dnsAuto = n.dnsHost == null && lp.isPrivateDnsActive();
+            }
         }
         n.name = NetState.read(ctx).name;
         if (n.wifi) {
