@@ -44,18 +44,18 @@ SDK="$(A shell getprop ro.build.version.sdk | tr -d '\r')"
 [ "${SDK:-0}" -ge 29 ] 2>/dev/null || die "the TV runs Android SDK ${SDK:-?}; this launcher needs Android 10 (SDK 29) or newer."
 
 # ---- remember the TV's own launcher before replacing it (any brand), for --disable-stock and
-# restore.sh. Older setups recorded it in backup/home-default.txt.
-mkdir -p backup
+# restore.sh, in this TV's backup/<serial>/. Older setups recorded it in home-default.txt.
+tv_backup
 stock_home() {
-  if [ -s backup/stock-home.txt ]; then tr -d '\r' < backup/stock-home.txt
-  elif [ -s backup/home-default.txt ]; then tail -1 backup/home-default.txt | tr -d '\r'
+  if [ -s "$B/stock-home.txt" ]; then tr -d '\r' < "$B/stock-home.txt"
+  elif [ -s "$B/home-default.txt" ]; then tail -1 "$B/home-default.txt" | tr -d '\r'
   fi
 }
 if [ -z "$(stock_home)" ]; then
   CUR="$(A shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.HOME | tail -1 | tr -d '\r')"
   case "$CUR" in
     "$PKG"/*|*ResolverActivity*|*FallbackHome*|"") ;;  # ours, "choose an app", or none: nothing to record
-    */*) echo "$CUR" > backup/stock-home.txt; echo "TV's own launcher: $CUR (saved for restore.sh)" ;;
+    */*) echo "$CUR" > "$B/stock-home.txt"; echo "TV's own launcher: $CUR (saved for restore.sh)" ;;
   esac
 fi
 
@@ -107,8 +107,8 @@ opt appops set $PKG SYSTEM_ALERT_WINDOW allow
 # already enabled (Button Mapper), never replacing it. The flag itself is recorded the first time
 # so restore.sh can put it back (it is 1 only because a service is enabled).
 SVC="$PKG/$PKG.RemoteAccessibilityService"
-if [ ! -f backup/accessibility-enabled-before.txt ]; then
-  A shell settings get secure accessibility_enabled | tr -d '\r' > backup/accessibility-enabled-before.txt
+if [ ! -f "$B/accessibility-enabled-before.txt" ]; then
+  A shell settings get secure accessibility_enabled | tr -d '\r' > "$B/accessibility-enabled-before.txt"
 fi
 CUR="$(A shell settings get secure enabled_accessibility_services | tr -d '\r')"
 case "$CUR" in

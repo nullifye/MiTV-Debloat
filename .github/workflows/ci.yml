@@ -61,10 +61,59 @@ jobs:
           path: launcher/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
 
-  # Tag v<versionName> → a GitHub Release with tvhome-<version>.apk, downloadable without signing in.
+  # The terminal app (tui/): checked and built for every desktop platform. Intel Macs are
+  # cross-compiled on Apple Silicon (GitHub no longer has Intel Mac runners), so their tests run
+  # only as the arm64 build.
+  tui:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, exe: tvhome-tui, test: true }
+          - { os: macos-14, target: aarch64-apple-darwin, exe: tvhome-tui, test: true }
+          - { os: macos-14, target: x86_64-apple-darwin, exe: tvhome-tui, test: false }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, exe: tvhome-tui.exe, test: true }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: tui
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tui
+          key: ${{ matrix.target }}
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --target ${{ matrix.target }} -- -D warnings
+
+      - name: Tests
+        if: matrix.test
+        run: cargo test --target ${{ matrix.target }}
+
+      - name: Release build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tvhome-tui-${{ matrix.target }}
+          path: tui/target/${{ matrix.target }}/release/${{ matrix.exe }}
+          if-no-files-found: error
+
+  # Tag v<versionName> → a GitHub Release with tvhome-<version>.apk and the terminal app for each
+  # platform, downloadable without signing in.
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
+    needs: [build, tui]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -96,11 +145,34 @@ jobs:
         with:
           name: app-release
 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: tvhome-tui-*
+          path: tui-bin
+
+      # One archive per platform: .zip for Windows, .tar.gz (executable bit restored) elsewhere.
+      - name: Package the terminal app
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          mkdir -p dist
+          for dir in tui-bin/tvhome-tui-*; do
+            target="${dir#tui-bin/tvhome-tui-}"
+            name="tvhome-tui-$VERSION-$target"
+            if [ -f "$dir/tvhome-tui.exe" ]; then
+              (cd "$dir" && zip -q "$GITHUB_WORKSPACE/dist/$name.zip" tvhome-tui.exe)
+            else
+              chmod +x "$dir/tvhome-tui"
+              tar -czf "dist/$name.tar.gz" -C "$dir" tvhome-tui
+            fi
+          done
+          ls -l dist
+
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           mv app-release.apk "tvhome-$VERSION.apk"
-          gh release create "$GITHUB_REF_NAME" "tvhome-$VERSION.apk" \
+          gh release create "$GITHUB_REF_NAME" "tvhome-$VERSION.apk" dist/* \
             --title "TV Home $VERSION" --generate-notes

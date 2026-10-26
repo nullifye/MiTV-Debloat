@@ -1,0 +1,467 @@
+# Notes for the Debloat menu. The menu lists what's actually installed on the TV; packages here
+# get a label, a note and advice. Packages not listed just show their name.
+#
+# advice:
+#   safe      fine to disable for most people (shown with "a" = mark all safe)
+#   caution   works, but you lose something (read the note)
+#   keep      better left on; you can still disable it
+#   never     the TV needs it: the menu won't disable it
+#   handover  Google TV Home: done by Install → Google TV handover, not here
+#
+# Everything is only *disabled* (pm disable-user --user 0), never uninstalled; Restore turns it
+# back on.
+
+# ---------------------------------------------------------------- Xiaomi Mi TV (docs/xiaomi-debloat.md)
+
+[[app]]
+package = "com.miui.tv.analytics"
+label = "Xiaomi analytics"
+category = "Telemetry"
+advice = "safe"
+note = "Usage statistics sent to Xiaomi."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.xiaomi.statistic"
+label = "Xiaomi statistics"
+category = "Telemetry"
+advice = "safe"
+note = "Usage statistics sent to Xiaomi."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.google.android.feedback"
+label = "Google feedback"
+category = "Telemetry"
+advice = "safe"
+note = "Sends crash and feedback reports to Google."
+
+[[app]]
+package = "com.google.android.tv.bugreportsender"
+label = "Bug report sender"
+category = "Telemetry"
+advice = "safe"
+note = "Uploads bug reports."
+
+[[app]]
+package = "com.mitv.tvhome.michannel"
+label = "PatchWall channels"
+category = "Content and ads"
+advice = "safe"
+note = "PatchWall's content and ad rows."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.xm.webcontent"
+label = "Xiaomi web content"
+category = "Content and ads"
+advice = "safe"
+note = "Promoted web content."
+brands = ["xiaomi"]
+
+[[app]]
+package = "android.autoinstalls.config.xiaomi.amelie"
+label = "Partner auto-installs"
+category = "Content and ads"
+advice = "safe"
+note = "Installs promoted apps after setup and updates."
+brands = ["xiaomi"]
+
+[[app]]
+package = "fusion.android.tv.demo"
+label = "Store demo"
+category = "Content and ads"
+advice = "safe"
+note = "In-store demo mode."
+
+[[app]]
+package = "com.google.android.tvrecommendations"
+label = "TV recommendations"
+category = "Content and ads"
+advice = "safe"
+note = "Feeds recommendation rows to the stock launcher. Not used by this launcher."
+
+[[app]]
+package = "com.google.android.leanbacklauncher.recommendations"
+label = "Launcher recommendations"
+category = "Content and ads"
+advice = "safe"
+note = "Recommendation rows for the old Android TV launcher."
+
+[[app]]
+package = "com.android.printspooler"
+label = "Print service"
+category = "Background services"
+advice = "safe"
+note = "Printing; nothing prints from a TV."
+
+[[app]]
+package = "com.google.android.leanbacklauncher"
+label = "Leanback launcher"
+category = "Background services"
+advice = "safe"
+note = "The old Android TV launcher's background parts."
+
+[[app]]
+package = "com.mitv.dream"
+label = "Xiaomi screensaver"
+category = "Background services"
+advice = "caution"
+note = "Xiaomi's screensaver. Android's own screensaver settings still work."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.google.android.backdrop"
+label = "Ambient mode (Backdrop)"
+category = "Background services"
+advice = "caution"
+note = "Google's photo screensaver."
+
+[[app]]
+package = "com.amazon.amazonvideo.livingroom"
+label = "Prime Video"
+category = "Apps you may not use"
+advice = "caution"
+note = "Only if you don't watch Prime Video. The remote's Prime Video button stops working."
+
+[[app]]
+package = "com.google.android.videos"
+label = "Google TV / Play Movies"
+category = "Apps you may not use"
+advice = "caution"
+note = "Google's movie store."
+
+[[app]]
+package = "com.google.android.play.games"
+label = "Play Games"
+category = "Apps you may not use"
+advice = "safe"
+note = "Google Play Games."
+
+[[app]]
+package = "com.google.android.marvin.talkback"
+label = "TalkBack"
+category = "Apps you may not use"
+advice = "caution"
+note = "Screen reader. Keep it if anyone needs spoken feedback."
+
+[[app]]
+package = "com.google.android.katniss"
+label = "Google app for Android TV"
+category = "Apps you may not use"
+advice = "caution"
+note = "Search and voice. The remote's Assistant button stops working."
+
+[[app]]
+package = "com.google.android.tv.assistant"
+label = "Google Assistant"
+category = "Apps you may not use"
+advice = "caution"
+note = "Voice assistant. The remote's Assistant button stops working."
+
+[[app]]
+package = "com.xiaomi.mitv.mediaexplorer"
+label = "Xiaomi media explorer"
+category = "Apps you may not use"
+advice = "caution"
+note = "Xiaomi's file and media browser."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.google.android.tvlauncher"
+label = "Android TV home (stock)"
+category = "Replaced"
+advice = "caution"
+note = "The stock home screen. Only with this launcher installed and set as Home."
+
+# ---------------------------------------------------------------- kept on purpose
+
+[[app]]
+package = "com.mitv.tvhome.atv"
+label = "PatchWall"
+category = "Kept on purpose"
+advice = "keep"
+note = "Hosts Xiaomi's Input popup."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.mitv.videoplayer"
+label = "Xiaomi video player"
+category = "Kept on purpose"
+advice = "keep"
+note = "Plays videos from USB and the phone remote's Files tab."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.mediatek.hotkey.dispatcher"
+label = "Remote hotkeys"
+category = "Kept on purpose"
+advice = "keep"
+note = "Makes the remote's special buttons work."
+
+[[app]]
+package = "com.xiaomi.android.tvsetup.partnercustomizer"
+label = "Remote pairing helper"
+category = "Kept on purpose"
+advice = "keep"
+note = "Bluetooth remote pairing."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.xiaomi.mitv.tvmanager"
+label = "TV Manager"
+category = "Kept on purpose"
+advice = "keep"
+note = "Xiaomi's cleaner; re-enabled on the Mi TV because it's used."
+brands = ["xiaomi"]
+
+# ---------------------------------------------------------------- the TV needs these
+
+[[app]]
+package = "android"
+label = "Android system"
+category = "System"
+advice = "never"
+note = "The Android framework."
+
+[[app]]
+package = "com.android.systemui"
+label = "System UI"
+category = "System"
+advice = "never"
+note = "Volume bar, notifications and dialogs."
+
+[[app]]
+package = "com.android.tv.settings"
+label = "TV Settings"
+category = "System"
+advice = "never"
+note = "Settings, including the fallback home screen."
+
+[[app]]
+package = "com.android.settings"
+label = "Settings"
+category = "System"
+advice = "never"
+note = "Android settings."
+
+[[app]]
+package = "com.android.vending"
+label = "Play Store"
+category = "System"
+advice = "never"
+note = "App installs and updates."
+
+[[app]]
+package = "com.google.android.gms"
+label = "Play Services"
+category = "System"
+advice = "never"
+note = "Most apps need it."
+
+[[app]]
+package = "com.google.android.gsf"
+label = "Google Services Framework"
+category = "System"
+advice = "never"
+note = "Google account and Play Services."
+
+[[app]]
+package = "com.mediatek.wwtv.tvcenter"
+label = "Live TV"
+category = "System"
+advice = "never"
+note = "HDMI, AV and the antenna screen."
+
+[[app]]
+package = "com.mediatek.tvinput"
+label = "TV inputs"
+category = "System"
+advice = "never"
+note = "The TV input framework (HDMI, AV, tuner)."
+
+[[app]]
+package = "com.mediatek.tv.service"
+label = "TV service"
+category = "System"
+advice = "never"
+note = "MediaTek TV core."
+
+[[app]]
+package = "mitv.service"
+label = "Mi TV service"
+category = "System"
+advice = "never"
+note = "Xiaomi TV core."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.android.tv"
+label = "Live TV"
+category = "System"
+advice = "never"
+note = "Live TV and inputs on many Android TV sets."
+
+[[app]]
+package = "com.realtek.dtv"
+label = "Realtek TV"
+category = "System"
+advice = "never"
+note = "Realtek TV core (Sony and others)."
+
+[[app]]
+package = "com.realtek.tv.atv"
+label = "Realtek analog TV"
+category = "System"
+advice = "never"
+note = "Realtek tuner."
+
+[[app]]
+package = "com.realtek.tv.passthrough"
+label = "Realtek HDMI passthrough"
+category = "System"
+advice = "never"
+note = "Realtek inputs."
+
+[[app]]
+package = "com.sony.dtv.smartui"
+label = "Sony input menu"
+category = "System"
+advice = "never"
+note = "Sony's Inputs menu."
+brands = ["sony"]
+
+# ---------------------------------------------------------------- Google TV / Sony
+
+[[app]]
+package = "com.google.android.tungsten.setupwraith"
+label = "Google TV setup"
+category = "Google TV home"
+advice = "handover"
+note = "Answers Home ahead of any launcher. Use Install → Google TV handover (it checks your Wi-Fi first). Phone casting may stop after a reboot while it's off."
+
+[[app]]
+package = "com.google.android.apps.tv.launcherx"
+label = "Google TV home (stock)"
+category = "Google TV home"
+advice = "handover"
+note = "The stock Google TV home screen. Use Install → Google TV handover."
+
+[[app]]
+package = "com.google.android.apps.tv.dreamx"
+label = "Google TV Ambient"
+category = "Background services"
+advice = "caution"
+note = "Google TV's photo and art screensaver."
+
+[[app]]
+package = "com.android.adservices.api"
+label = "Ad services"
+category = "Telemetry"
+advice = "safe"
+note = "Android's Privacy Sandbox ad services."
+
+[[app]]
+package = "com.android.federatedcompute.services"
+label = "Federated compute"
+category = "Telemetry"
+advice = "safe"
+note = "On-device machine learning for Google."
+
+[[app]]
+package = "com.android.ondevicepersonalization.services"
+label = "On-device personalization"
+category = "Telemetry"
+advice = "safe"
+note = "Ad personalization."
+
+[[app]]
+package = "com.google.android.partnersetup"
+label = "Partner setup"
+category = "Content and ads"
+advice = "safe"
+note = "Partner attribution after setup."
+
+[[app]]
+package = "com.google.android.onetimeinitializer"
+label = "One-time initializer"
+category = "Background services"
+advice = "safe"
+note = "Runs once after setup."
+
+[[app]]
+package = "com.google.android.syncadapters.calendar"
+label = "Calendar sync"
+category = "Background services"
+advice = "safe"
+note = "Syncs a calendar nothing on the TV shows."
+
+[[app]]
+package = "android.autoinstalls.config.google.gtvpai"
+label = "Google TV auto-installs"
+category = "Content and ads"
+advice = "safe"
+note = "Installs promoted apps on Google TV."
+
+[[app]]
+package = "com.android.gallery3d"
+label = "Gallery (legacy)"
+category = "Apps you may not use"
+advice = "safe"
+note = "An old photo gallery."
+
+[[app]]
+package = "com.sony.dtv.promos"
+label = "Sony promos"
+category = "Content and ads"
+advice = "safe"
+note = "My BRAVIA promotions."
+brands = ["sony"]
+
+[[app]]
+package = "com.sony.dtv.sonyselect"
+label = "Sony Select"
+category = "Content and ads"
+advice = "safe"
+note = "Sony's app recommendations."
+brands = ["sony"]
+
+[[app]]
+package = "com.sony.dtv.sonytab"
+label = "Sony content tab"
+category = "Content and ads"
+advice = "safe"
+note = "Sony's content tab on Google TV."
+brands = ["sony"]
+
+[[app]]
+package = "com.sony.dtv.multiscreendemo"
+label = "Sony store demo"
+category = "Content and ads"
+advice = "safe"
+note = "In-store demo."
+brands = ["sony"]
+
+[[app]]
+package = "com.sony.dtv.smarthelp"
+label = "Sony help tile"
+category = "Apps you may not use"
+advice = "safe"
+note = "Help shortcut."
+brands = ["sony"]
+
+[[app]]
+package = "com.sony.dtv.helpguidecontents"
+label = "Sony help guide"
+category = "Apps you may not use"
+advice = "safe"
+note = "Built-in help guide content."
+brands = ["sony"]
+
+[[app]]
+package = "com.sonypicturescore"
+label = "Sony Pictures Core"
+category = "Apps you may not use"
+advice = "safe"
+note = "Preinstalled movie service."
+brands = ["sony"]

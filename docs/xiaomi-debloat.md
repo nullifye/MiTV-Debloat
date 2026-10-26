@@ -47,7 +47,7 @@ Then press Home.
 
 ## Speed tweaks
 
-- **Background-restricted apps:** tonton, iQIYI, Viu, iflix and M3U IPTV can't run services or boot tasks while you're not using them. They work normally when you open them, but the first launch is a cold start. The list is in `backup/bg-restricted.txt`, and `restore.sh` lifts the restriction.
+- **Background-restricted apps:** tonton, iQIYI, Viu, iflix and M3U IPTV can't run services or boot tasks while you're not using them. They work normally when you open them, but the first launch is a cold start. The list is in `backup/<serial>/bg-restricted.txt`, and `restore.sh` lifts the restriction.
   ```bash
   adb shell cmd appops set my.com.tonton.screen RUN_ANY_IN_BACKGROUND ignore   # restrict one more app
   adb shell cmd appops set my.com.tonton.screen RUN_ANY_IN_BACKGROUND allow    # undo for one app

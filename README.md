@@ -88,6 +88,7 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
 
 You need an Android TV or Google TV running Android 10 or newer, and a computer on the same Wi-Fi. The scripts build the launcher, install it over network ADB and make it the home screen; they work with any TV brand.
 
+- Easiest: the **setup app** ([docs/tui.md](docs/tui.md)). One download for Windows, macOS or Linux, nothing else to install. It finds your TV on the Wi-Fi, installs TV Home, cleans up the TV and can undo everything, explaining each step before it runs.
 - Step by step: [Windows](docs/install-windows.md) · [macOS](docs/install-macos.md) · [Linux](docs/install-linux.md)
 - No build tools? Download the ready-made APK from [Releases](https://github.com/nullifye/MiTV-Debloat/releases/latest) and install it with only adb: [Windows](docs/install-windows.md#install-the-ready-made-apk-instead-no-building) · [macOS](docs/install-macos.md#install-the-ready-made-apk-instead-no-building) · [Linux](docs/install-linux.md#install-the-ready-made-apk-instead-no-building)
 - Let an AI coding agent do it: [Install with an AI agent](docs/install-with-ai-agent.md)

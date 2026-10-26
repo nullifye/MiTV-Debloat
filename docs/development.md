@@ -9,7 +9,7 @@ MiTV-Debloat/
 ├── README.md
 ├── PROMPT.md                    paste into an AI coding agent to repeat the whole setup (debloat + launcher) on another TV
 ├── docs/                        install guides (install-*.md), features.md, xiaomi-debloat.md, development.md, screenshots
-├── backup/                      state captured BEFORE any change (local only, not in the repo: it identifies the TV)
+├── backup/<serial>/             each TV's state captured BEFORE any change (local only, not in the repo: it identifies the TV)
 │   ├── disabled-by-us.txt       every package this project disabled (restore.sh reads it)
 │   ├── packages-*.txt           full package lists (all, system, third-party, disabled)
 │   ├── getprop.txt, settings-{global,secure,system}.txt
@@ -19,7 +19,10 @@ MiTV-Debloat/
 ├── launcher/                    the launcher source (Java, AndroidX RecyclerView, minSdk 29, targetSdk 36), incl. the phone remote
 │   ├── app/src/main/            the launcher, the phone remote page (assets/remote.html) and its resources
 │   └── app/src/test/            unit tests for the pure logic (no TV or emulator needed)
-├── .github/workflows/ci.yml     GitHub Actions: lint, unit tests and the release build on every push
+├── tui/                         the terminal app (Rust, ratatui): connect, install from Releases, debloat, tweaks, restore
+│   ├── src/                     adb runner, parsers, plans (command preview), flows mirroring the scripts, UI
+│   └── catalog.toml             notes and advice for the Debloat menu (safe / caution / keep / never)
+├── .github/workflows/ci.yml     GitHub Actions: lint, unit tests and the release build on every push; the TUI for 4 platforms
 ├── scripts/
 │   ├── build-and-install.sh     check the computer and TV, build the launcher (R8 release, ~0.6 MB APK), install it, make it the home screen
 │   ├── benchmark.sh             measure a launcher's memory, CPU, start-up and smoothness
@@ -90,6 +93,41 @@ Check it worked: the next CI run's *Release signing key* step runs instead of be
 3. CI builds and tests it, then creates the release **TV Home 1.9** with `tvhome-1.9.apk` and notes generated from the commits.
 
 The release job refuses to publish if the tag doesn't match `versionName`, or if the signing secrets are missing (a debug-signed release couldn't be updated later without losing settings).
+
+## The terminal app (tui/)
+
+A Rust ([ratatui](https://ratatui.rs)) front end to everything the scripts do, without bash. User guide: [tui.md](tui.md).
+
+- **Guided for non-technical people:** each screen (`screens.rs`) is a few plain sentences and a list of choices; `ui.rs` draws them all the same way, and keys and mouse clicks pick them.
+  - If adb isn't installed, it offers to download Google's Platform Tools into its own folder (`setup.rs`).
+  - It finds TVs from `adb mdns services` (Wireless debugging, including TVs waiting to pair) and by scanning the /24 network for port 5555. It waits for "Allow USB debugging?" by itself and supports pairing codes.
+  - *Set up my TV* (`flows::setup_all`) is install, the recommended clean-up and optionally Private DNS, as one plan with one Home check at the end.
+  - Quitting while connected offers `flows::debugging_off`.
+  - *Save a support report* (`report.rs`) writes the TV's details, its records and the end of the log (pairing codes masked) to Downloads.
+  - `--ascii` (automatic in Windows' classic console) and `NO_COLOR`/`--no-color` rewrite the finished frame (`ui::plain`), so screens don't need to know about either. A test checks every non-ASCII symbol in the screens has a stand-in.
+- **Runs `adb` directly** (no shell), so Windows shells can't rewrite paths. Every call is pinned with `-s <serial>`.
+- **Plans:** `flows.rs` builds each action from read-only checks (logged), so the preview shows the real commands with the real values. `plan.rs` runs them: a required step that fails stops the plan, an optional one is noted, and `pm install`'s signature mismatch offers uninstall-then-install.
+  - **Health check with rollback:** install, Set up and disabling end in an `Action::VerifyHome` step. After an install it polls the focused window for TV Home (giving up early on Google TV's setup screen). After disabling, it checks HOME still resolves to something other than `FallbackHome` or the setup app. On failure it re-enables what that plan disabled and, after an install, sets the recorded stock launcher as Home.
+- **Shares `backup/` and `.tv` with the scripts** when run inside the repository, in the same file formats. `scripts/restore.sh` undoes the TUI and the other way round.
+  - **Per-TV records** in `backup/<serial>/`: `Store::use_tv` in the TUI and `tv_backup` in `scripts/env.sh` follow the same rules. The serial is `ro.serialno`, then `ro.boot.serialno`, else the TV's IP, with anything other than letters, digits, `-` and `_` turned into `_`. A `tv.txt` inside names the TV.
+  - Loose records from before this move once into the folder of the TV that `backup/getprop.txt` names, or of the first TV seen when there's none. The TUI writes nothing until a TV has been chosen.
+- **Mirrors the scripts:**
+  - Install is `build-and-install.sh` without the build. It records the stock launcher once, pushes and runs `pm install -r`, grants the same permissions (plus `BLUETOOTH_CONNECT` on Android 12+), appends the accessibility service and sets Home, with the optional Google TV handover. Then it checks what's in front.
+  - Disable/enable is `disable.sh`.
+  - Restore follows `restore.sh` step by step.
+- **Debloat notes:**
+  - `catalog.toml` is this project's own reviewed notes. *never* matches `AppManager.PROTECTED` in the launcher, and a test keeps the two in step.
+  - `catalog-cleanyourtv.toml` is generated from [cleanyourtv](https://github.com/Gathin23/cleanyourtv)'s 300+ per-model lists (MIT) by `tools/import_cleanyourtv.py`. It pre-ticks only ads, tracking and promos that owners of at least two TVs disabled, and never anything that looks like a system part (a test checks this).
+  - Ours wins for any package in both. To refresh it, clone cleanyourtv and run `python3 -I tui/tools/import_cleanyourtv.py <clone> tui/catalog-cleanyourtv.toml`.
+
+```bash
+cd tui
+cargo test                                  # parsers, backups, plans, install/restore flows (fake adb)
+cargo clippy --all-targets -- -D warnings
+cargo run -- --dry-run                      # try it against a TV without changing anything
+```
+
+CI checks and builds it for Linux, Windows and both kinds of Mac; a version tag attaches the four archives to the GitHub Release next to the APK.
 
 ## Tests and CI
 

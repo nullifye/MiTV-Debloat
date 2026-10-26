@@ -56,5 +56,5 @@ Expect an hour or more, and several questions. Every change is logged and can be
 - **Read commands before you approve them**, especially `pm disable-user`, `pm uninstall` and `settings put`. This project only ever *disables* apps (they can be re-enabled). It never uninstalls system apps.
 - **If it can't connect:** check the TV is on and on the same Wi-Fi, and accept the prompt on the TV. Then ask the agent to run `adb kill-server` and try again.
 - **The agent can't see the TV screen** unless it takes a screenshot (`scripts/shot.sh name`). Tell it what you see when something looks wrong.
-- **Keep the `backup/` folder.** `scripts/restore.sh` reads it to put everything back.
+- **Keep the `backup/` folder.** It has one folder per TV, named after its serial number, and `scripts/restore.sh` reads the TV's folder to put everything back.
 - **Turn USB debugging off when you're done.** Network debugging isn't encrypted, so anyone on your Wi-Fi could control the TV.

@@ -1,17 +1,17 @@
 #!/bin/bash
-# Undo everything this project changed on the TV (any brand), using what was recorded in backup/:
-#  - re-enables every package listed in backup/disabled-by-us.txt, and any the phone remote disabled
+# Undo everything this project changed on the TV (any brand), using what was recorded for it in
+# backup/<serial>/ (see tv_backup in env.sh):
+#  - re-enables every package listed in disabled-by-us.txt, and any the phone remote disabled
 #  - lets background-restricted apps run in the background again and puts Wi-Fi scanning back
-#    (only if those speed tweaks were made: backup/bg-restricted.txt, backup/speed-tweaks-before.txt)
-#  - puts Private DNS back as it was (only if it was changed: backup/private-dns-before.txt)
+#    (only if those speed tweaks were made: bg-restricted.txt, speed-tweaks-before.txt)
+#  - puts Private DNS back as it was (only if it was changed: private-dns-before.txt)
 #  - removes this launcher's accessibility service and, if nothing else uses it, the
-#    accessibility_enabled flag it turned on (backup/accessibility-enabled-before.txt)
+#    accessibility_enabled flag it turned on (accessibility-enabled-before.txt)
 #  - makes the TV's own launcher the home screen again (and optionally removes this launcher)
 # Usage: scripts/restore.sh [--remove-launcher]
 source "$(dirname "$0")/env.sh"
-B="$ROOT/backup"
 PKG=my.rafhan.app.tvhome
-adb connect "$TV" >/dev/null
+tv_backup || exit 1
 if [ -f "$B/disabled-by-us.txt" ]; then
   while read -r p; do
     [ -z "$p" ] && continue
@@ -67,7 +67,7 @@ if [ -f "$B/private-dns-before.txt" ]; then
   fi
 fi
 # Home screen: the TV's own launcher, as recorded by build-and-install.sh (older setups:
-# backup/home-default.txt). Unknown: let Android ask on the next Home press.
+# home-default.txt). Unknown: let Android ask on the next Home press.
 STOCK=""
 if [ -s "$B/stock-home.txt" ]; then STOCK="$(tr -d '\r' < "$B/stock-home.txt")"
 elif [ -s "$B/home-default.txt" ]; then STOCK="$(tail -1 "$B/home-default.txt" | tr -d '\r')"

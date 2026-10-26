@@ -1,0 +1,120 @@
+# The setup app (TUI)
+
+`tvhome-tui` is a small app for your computer that sets up the TV for you. It guides you through it: you pick choices with the arrow keys and Enter, or with the mouse, and it tells you in plain words what it will do before it does anything.
+
+It can:
+- **set up the TV in one go** (*Set up my TV*): everything below, with a check at the end
+- **find your TV** on the Wi-Fi and connect to it
+- **install TV Home** (and update it later)
+- **clean up the TV**: turn off ads, tracking and apps you don't use
+- **block ads on the whole TV**
+- **undo everything**
+
+![The setup app's main menu](tui.png)
+
+You don't need to install anything else first. If your computer doesn't have Google's small helper for talking to Android devices (*adb*), the app offers to download it into its own folder.
+
+## 1. Get the app
+
+From [Releases](https://github.com/nullifye/MiTV-Debloat/releases/latest), under **Assets**, download the file for your computer:
+
+| Your computer | File |
+|---|---|
+| Windows | `tvhome-tui-<version>-x86_64-pc-windows-msvc.zip` |
+| Mac with Apple chip (M1 or newer) | `tvhome-tui-<version>-aarch64-apple-darwin.tar.gz` |
+| Mac with Intel chip | `tvhome-tui-<version>-x86_64-apple-darwin.tar.gz` |
+| Linux | `tvhome-tui-<version>-x86_64-unknown-linux-gnu.tar.gz` |
+
+Not sure which Mac you have? Apple menu → **About This Mac**: it says *Chip: Apple…* or *Processor: Intel…*.
+
+Unpack it, then start it:
+- **Windows:** right-click the zip → **Extract All**, then double-click `tvhome-tui.exe`. If Windows says "Windows protected your PC", choose **More info → Run anyway** (the app isn't code-signed).
+- **Mac:** double-click the downloaded file to unpack it. Then open **Terminal** and run these two lines. The first lets macOS run a program from outside the App Store; the second starts it.
+  ```bash
+  xattr -d com.apple.quarantine ~/Downloads/tvhome-tui
+  ~/Downloads/tvhome-tui
+  ```
+- **Linux:** `tar -xzf tvhome-tui-*.tar.gz && ./tvhome-tui`
+
+The window works best quite large (about 110 × 32 characters). Make it bigger if things look cut off.
+
+## 2. Follow it
+
+1. **Get the helper.** If the app asks about *Android Platform Tools*, choose **Download it for me**. It takes a few seconds and goes into the app's own folder; nothing else on your computer changes.
+2. **Prepare the TV.** Turn on *USB debugging* on the TV. The app's **How do I turn on USB debugging?** walks you through it.
+3. **Find your TV.** The app looks for TVs on your Wi-Fi and lists them: choose yours. Not found? Choose **Type the TV's address**. On newer Google TVs that only have *Wireless debugging*, open **Pair device with pairing code** on the TV: the app lists it as *TV at … wants to pair* (or choose **My TV shows a pairing code**), then type the code.
+4. **Allow it on the TV.** The TV asks "Allow USB debugging?". Tick **Always allow from this computer** and choose **OK**. The app notices by itself and carries on.
+5. **Choose what to do** from the main menu. **Set up my TV** does it all in one go.
+
+Before anything changes, you see a **"Ready to…?"** page listing what will happen. Choose **Start**, or **Cancel** to back out. **Show the exact commands** shows every command it will run. When it's finished, it tells you what to do next, for example "Press the Home button on your TV remote".
+
+**It checks its own work.** After installing or turning apps off, the app checks that the Home button still works. If it doesn't, the app switches back on what it just switched off, so the TV is never left stuck.
+
+The app remembers your TV, so next time it connects by itself.
+
+## What's in the menu
+
+| Choice | What it does |
+|---|---|
+| **Set up my TV (recommended)** | Everything in one go: installs (or updates) TV Home, turns off the suggested apps (see *Clean up*), and blocks ads on the whole TV if that box is ticked. One **"Ready to…?"** page lists it all first, and Home is checked at the end. |
+| **Install / Update TV Home** | Downloads the newest TV Home, installs it, gives it the permissions it needs and makes it the home screen. Updating keeps your settings. On a **Google TV** (Sony, TCL, Chromecast, Hisense…), tick *This TV has Google TV*: Google TV keeps its own home screen otherwise. |
+| **Clean up the TV** | Lists the preinstalled apps on *your* TV that are worth turning off, with a short note on each.<br>• **Ticked for you:** ads, tracking, promos and store demos that owners of at least two TVs (from [cleanyourtv](https://github.com/Gathin23/cleanyourtv)'s lists for 300+ models) turned off. Untick any you want to keep, then choose **Turn off**.<br>• **Show more apps you could turn off:** streaming apps, screensavers and other things, only if you don't use them.<br>• Apps the TV needs can't be ticked.<br>• *Show every app on the TV* lists everything, for people who know what they're doing. |
+| **Speed and privacy** | **Block ads on the whole TV** (AdGuard's free ad-blocking DNS) and **stop background Wi-Fi scanning**. |
+| **Undo all changes** | Turns every app back on and puts every setting back, including the TV's own home screen. Tick *Also remove TV Home* to uninstall it as well. |
+| **More tools** | A screenshot of the TV, a live log from TV Home (for troubleshooting), the phone remote's address, installing from a file, removing TV Home, restarting the TV, and **Save a support report**. |
+| **Use a different TV** | Disconnects and looks for TVs again. |
+
+**Nothing is ever deleted.** Apps are only turned off, and *Undo all changes* turns them back on. The only thing the app can uninstall is TV Home itself, and only when you choose that.
+
+## Keys
+
+| Key | Does |
+|---|---|
+| ↑ ↓ | Move between choices (or scroll the mouse wheel) |
+| Enter | Choose (or click) |
+| Space | Tick or untick a box |
+| Esc | Go back |
+| L | Show everything the app did: each command and what the TV answered. Press **E** there for problems only. |
+| ? | Help |
+| Q | Quit (asks about USB debugging first) |
+
+## When you're done
+
+Press **Q**. While you're connected, the app offers **Turn off USB debugging and quit**: choose it. While USB debugging is on, anyone on your Wi-Fi could control the TV. TV Home and the phone remote keep working with it off. To use the app again later, turn USB debugging back on in Developer options.
+
+## If something goes wrong
+
+| Problem | Try this |
+|---|---|
+| No TV found | Check the TV is on, on the same Wi-Fi as the computer, and USB debugging is on. Choose **Search again**, or type the address. |
+| It can't connect | Choose **Restart the connection helper**, then try again. Restarting the TV helps too. |
+| The TV never asks "Allow USB debugging?" | Press Home on the TV remote and look again, then choose **Try again**. On some TVs, turning USB debugging off and on brings it back. |
+| "can't be updated in place" while installing | TV Home was installed from somewhere else. The app offers to remove the old copy first. That resets TV Home's settings. |
+| Home still opens the old home screen | Install again with *This TV has Google TV* ticked. |
+| "Home didn't open TV Home" | The check at the end failed, so the app switched back on what it had switched off. The TV works as before. Restart the TV and try again; on a Google TV, tick *This TV has Google TV*. |
+| Mac says the app "cannot be opened" | Run the `xattr` line from step 1. |
+| Odd characters or broken lines on Windows | Use **Windows Terminal** (from the Microsoft Store). In the old console the app already switches to plain symbols. |
+| You need help | **More tools → Save a support report** saves a text file in your Downloads folder with what went wrong. Attach it when you ask. |
+
+Everything the app does is also saved in `tui.log` in its folder:
+- **Mac:** `~/Library/Application Support/tvhome-tui`
+- **Windows:** `%APPDATA%\tvhome-tui`
+- **Linux:** `~/.local/share/tvhome-tui`
+
+## Credits
+
+The Clean up suggestions use the per-model debloat lists from [cleanyourtv](https://github.com/Gathin23/cleanyourtv) (MIT License, Copyright (c) 2026 Gathin). `tui/tools/import_cleanyourtv.py` turns them into `tui/catalog-cleanyourtv.toml`; this project's own notes in `tui/catalog.toml` take priority.
+
+## For the technically curious
+
+- **Options:** `tvhome-tui [--tv <ip[:port]>] [--adb <path>] [--repo <owner/name>] [--data-dir <path>] [--dry-run] [--ascii | --unicode] [--no-color]`.
+  - With `--dry-run` (*practice mode*), every plan is shown and logged but nothing on the TV changes.
+  - `--ascii` draws plain symbols (`*`, `>`, `+--+`). It's automatic in Windows' classic console (no `WT_SESSION`, `TERM_PROGRAM` or ConEmu); `--unicode` turns it off. `TVHOME_ASCII=1` does the same as `--ascii`.
+  - `--no-color`, or the `NO_COLOR` environment variable, turns colours off; the selected choice shows as reversed text.
+- **Which adb it uses:** an installed one first (on `PATH` or in an Android SDK), else its own copy in `<app folder>/platform-tools`. That copy is Google's *platform-tools-latest* for your system, and the app asks before downloading it.
+- **Finding TVs:** it asks adb for TVs announcing *Wireless debugging* (`adb mdns services`), and checks the computer's local network (/24) for port 5555, which is network debugging. TVs adb is already connected to are listed too.
+- **Each TV has its own records** in `backup/<serial>/`, keyed by the TV's serial number (its address if it has none). That's what the app turned off and the settings it changed, plus `tv.txt` naming the TV. *Undo all changes* only ever undoes what was done to that TV. Records from before this were loose in `backup/`: they move into the folder of the TV that `backup/getprop.txt` names, or of the first TV that connects if there's no such file.
+- **The Home check:** after installing it presses Home and waits up to 12 s for TV Home to be in front (`dumpsys window`). After turning apps off it checks Home still resolves to a real home screen. If the check fails, it runs `pm enable` for what that plan disabled and, after an install, makes the old launcher Home again.
+- **Turning USB debugging off** runs `settings put global adb_wifi_enabled 0; settings put global adb_enabled 0` in one shell command, because the connection drops as soon as the first one lands.
+- **Shared with the scripts:** started from the MiTV-Debloat folder, it uses the same `backup/<serial>/` folders and `.tv` file as the bash scripts. `scripts/restore.sh` undoes what the app did, and the app's *Undo* undoes what the scripts did.
+- **Building it:** the source is in `tui/` (Rust, [ratatui](https://ratatui.rs)). Run `cd tui && cargo run --release`, and `cargo test` for the tests.

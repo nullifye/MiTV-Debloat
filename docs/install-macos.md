@@ -4,6 +4,8 @@ This guide builds the launcher on your Mac and installs it on your TV over Wi-Fi
 
 Other guides: [Windows](install-windows.md) · [Linux](install-linux.md) · [with an AI agent](install-with-ai-agent.md)
 
+**Prefer an app that guides you?** The [setup app](tui.md) finds the TV, installs TV Home, cleans up the TV and can undo everything. One download, nothing else to install.
+
 **No build tools?** Skip the building and [install the ready-made APK](#install-the-ready-made-apk-instead-no-building) from GitHub Releases instead: only adb is needed.
 
 ## 1. Prepare the TV

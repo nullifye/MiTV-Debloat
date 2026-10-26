@@ -1,0 +1,22 @@
+[package]
+name = "tvhome-tui"
+version = "0.1.0"
+edition = "2024"
+description = "Terminal app to set up an Android TV with the TV Home launcher: connect, install, debloat, restore."
+publish = false
+
+[dependencies]
+anyhow = "1.0.104"
+dirs = "7.0.0"
+ratatui = "0.30.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+toml = "1.1.8"
+ureq = { version = "3.5.0", features = ["json"] }
+zip = { version = "9.1.1", default-features = false, features = ["deflate"] }
+
+# Smaller downloads: strip symbols and let LTO drop unused code.
+[profile.release]
+strip = true
+lto = "thin"

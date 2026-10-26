@@ -1,10 +1,11 @@
 #!/bin/bash
 # Usage: scripts/disable.sh pkg [pkg...]
-# Disables each package for user 0 (never uninstalls) and logs it to backup/disabled-by-us.txt
-# so restore.sh can re-enable it. One pm call per adb shell call: chained pm commands can stop early.
+# Disables each package for user 0 (never uninstalls) and logs it to the TV's
+# backup/<serial>/disabled-by-us.txt so restore.sh can re-enable it. One pm call per adb shell
+# call: chained pm commands can stop early.
 source "$(dirname "$0")/env.sh"
-LOG="$(dirname "$0")/../backup/disabled-by-us.txt"
-mkdir -p "$(dirname "$LOG")"
+tv_backup || exit 1
+LOG="$B/disabled-by-us.txt"
 for p in "$@"; do
   if ! A shell pm list packages "$p" | tr -d '\r' | grep -qx "package:$p"; then echo "skip (not installed): $p"; continue; fi
   # Already disabled before we touched it (the TV's own choice, or an earlier run): leave it, and
