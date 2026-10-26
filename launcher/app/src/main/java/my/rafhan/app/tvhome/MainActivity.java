@@ -24,6 +24,7 @@ import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
 import android.net.ConnectivityManager;
+import android.net.Uri;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.WifiInfo;
@@ -1272,7 +1273,7 @@ public class MainActivity extends Activity {
         showMenu(items, Math.min(loc[0], screenW - px(240 + 24)), loc[1] + Math.round(pill.getHeight() * PILL_SCALE) + px(10));
     }
 
-    /** Hold OK / Menu on a dock or grid tile: dock editing and Open. */
+    /** Hold OK / Menu on a dock or grid tile: dock editing, Open and App info. */
     private void openAppMenu() {
         if (section == UP) {
             openUpMenu();
@@ -1301,6 +1302,10 @@ public class MainActivity extends Activity {
             items.add(new MenuItem("Replace a dock app…", () -> startReplace(e)));
         }
         items.add(new MenuItem("Open " + e.label, () -> launch(e)));
+        // The system's page for the app: storage, cache, permissions, force stop, disable.
+        items.add(new MenuItem("App info", () -> startSafely(
+                new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", e.pkg, null))
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))));
 
         View tile = inDock ? dockTiles.get(dockIdx) : focusedGridTile();
         int x = screenW / 2 - px(120), y = screenH / 2;
