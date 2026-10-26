@@ -122,6 +122,18 @@
   .kv span { flex: none; font-size: 12px; color: var(--dim); }
   .kv b { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .kv .next span, .kv .next b { color: var(--accent); }
+  .kv span svg, .big svg, .card-h span svg { width: 12px; height: 12px; fill: currentColor; vertical-align: -1px; margin-right: 5px; }
+  .big svg { width: 18px; height: 18px; vertical-align: -2px; margin-right: 6px; }
+  /* volume pop-up after Vol −, Mute, Vol + */
+  #vol { position: fixed; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 6; min-width: 160px; padding: 14px 22px 16px;
+    text-align: center; background: rgba(28,28,30,.95); border: 1px solid var(--edge); border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,.5); pointer-events: none; transition: opacity .2s; }
+  #vol.off { opacity: 0; }
+  #vol span { font-size: 11px; letter-spacing: .12em; color: var(--dim); }
+  #vol b { display: block; font-size: 44px; font-weight: 300; line-height: 1.1; margin-top: 2px; }
+  #vol b.word { font-size: 28px; line-height: 1.6; }
+  #vol .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.15); margin-top: 8px; overflow: hidden; }
+  #vol .bar div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
   .grid2 button { padding: 9px 2px; border-radius: 12px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mini-h { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; letter-spacing: .1em; color: var(--dim);
@@ -362,6 +374,8 @@
   </nav>
 </section>
 
+<div id="vol" class="off" aria-live="polite"><span>VOLUME</span><b id="volNum">0</b><div class="bar"><div id="volBar"></div></div></div>
+
 <div id="shot" class="hidden">
   <div class="view"><div class="msg" id="shotMsg"></div><img id="shotImg" class="hidden" alt="Screenshot of the TV"></div>
   <div class="msg">Press and hold the picture to save it to Photos.</div>
@@ -459,6 +473,7 @@ async function pump() {
   const job = queue.shift();
   try {
     const r = typeof job === "string" ? await post("/api/key?k=" + job) : await job();
+    if (r && r.volume != null) showVolume(r);
     if (r && !r.ok) {
       flash(REASONS[r.reason] || r.error || "The TV couldn't do that.");
       if (r.reason !== "no-accessibility") { queue.length = 0; refreshState(true); }
@@ -467,6 +482,17 @@ async function pump() {
   } catch (e) { flash(e.message); queue.length = 0; }
   busy = false;
   pump();
+}
+// Vol −, Mute, Vol +: the TV answers with its new volume; show it for a moment.
+let volTimer = null;
+function showVolume(r) {
+  const n = $("volNum");
+  n.textContent = r.muted ? "Muted" : r.volume;
+  n.classList.toggle("word", !!r.muted);
+  $("volBar").style.width = (r.muted || !r.max ? 0 : Math.round(r.volume / r.max * 100)) + "%";
+  $("vol").classList.remove("off");
+  clearTimeout(volTimer);
+  volTimer = setTimeout(() => $("vol").classList.add("off"), 1500);
 }
 function sendText(t) { queue.push(() => post("/api/text", { text: t })); pump(); }
 function sendKeys(k, n) { if (n > 0) { queue.push(() => post("/api/key?k=" + k + "&n=" + n)); pump(); } }
@@ -847,13 +873,13 @@ async function loadDashboard() {
   }
   // Prayer times
   const p = d.prayer;
-  $("prayerZone").textContent = "Prayer · " + p.zone;
+  $("prayerZone").innerHTML = (p.next ? prayerIcon(p.next.name) : "") + esc("Prayer · " + p.zone);
   $("prayerZone").title = p.area;
   if (!p.times) { $("prayerTimes").innerHTML = '<span class="muted">Not downloaded yet (the TV fetches it when online).</span>'; prayerNextAt = 0; }
   else {
     const nextIdx = p.next && !p.next.tomorrow ? p.next.index : -1;
     $("prayerTimes").innerHTML = p.times.map((t, i) =>
-      `<div class="${i === nextIdx ? "next" : ""}"><span>${esc(t.name)}</span><b>${esc(t.time)}</b></div>`).join("");
+      `<div class="${i === nextIdx ? "next" : ""}"><span>${prayerIcon(t.name)}${esc(t.name)}</span><b>${esc(t.time)}</b></div>`).join("");
     prayerNextAt = p.next ? p.next.at : 0; prayerNextName = p.next ? p.next.name : "";
     prayerNextTime = p.next ? p.next.time : ""; prayerNextTomorrow = !!(p.next && p.next.tomorrow);
   }
@@ -904,10 +930,18 @@ document.querySelectorAll("#sleepChips button").forEach((b) => b.onclick = async
   try { await post("/api/sleeptimer?min=" + b.dataset.min); flash(b.dataset.min === "0" ? "Sleep timer off" : "The TV turns off in " + b.dataset.min + " min"); loadDashboard(); }
   catch (e) { flash(e.message); }
 });
+const PRAYER_ICONS = {
+  Fajr: { d: "M12,1.5l3.5,3.5H13v3.5h-2V5H8.5zM2,19h20v2H2zM12,11c-3.04,0 -5.5,2.46 -5.5,5.5V17h11v-0.5C17.5,13.46 15.04,11 12,11zM3.4,11.4l1.4,-1.4 1.8,1.8 -1.4,1.4zM17.4,11.8l1.8,-1.8 1.4,1.4 -1.8,1.8z", even: false },
+  Dhuhr: { d: "M6.76,4.84l-1.8,-1.79 -1.41,1.41 1.79,1.79 1.42,-1.41zM4,10.5H1v2h3v-2zM13,0.55h-2V3.5h2V0.55zM20.45,4.46l-1.41,-1.41 -1.79,1.79 1.41,1.41 1.79,-1.79zM17.24,18.16l1.79,1.8 1.41,-1.41 -1.8,-1.79 -1.4,1.4zM20,10.5v2h3v-2h-3zM12,5.5c-3.31,0 -6,2.69 -6,6s2.69,6 6,6 6,-2.69 6,-6 -2.69,-6 -6,-6zM11,22.45h2V19.5h-2v2.95zM3.55,18.54l1.41,1.41 1.79,-1.8 -1.41,-1.41 -1.79,1.8z", even: false },
+  Asr: { d: "M6.76,4.84l-1.8,-1.79 -1.41,1.41 1.79,1.79 1.42,-1.41zM4,10.5H1v2h3v-2zM13,0.55h-2V3.5h2V0.55zM20.45,4.46l-1.41,-1.41 -1.79,1.79 1.41,1.41 1.79,-1.79zM17.24,18.16l1.79,1.8 1.41,-1.41 -1.8,-1.79 -1.4,1.4zM20,10.5v2h3v-2h-3zM11,22.45h2V19.5h-2v2.95zM3.55,18.54l1.41,1.41 1.79,-1.8 -1.41,-1.41 -1.79,1.8zM12,5.5a6,6 0 1,0 0.001,0zM12,7.2a4.3,4.3 0 1,1 -0.001,0zM12,7.2a4.3,4.3 0 0,0 0,8.6z", even: true },
+  Maghrib: { d: "M11,1.5h2V5h2.5L12,8.5 8.5,5H11zM2,19h20v2H2zM12,11c-3.04,0 -5.5,2.46 -5.5,5.5V17h11v-0.5C17.5,13.46 15.04,11 12,11zM3.4,11.4l1.4,-1.4 1.8,1.8 -1.4,1.4zM17.4,11.8l1.8,-1.8 1.4,1.4 -1.8,1.8z", even: false },
+  Isya: { d: "M12,2c1.82,0 3.53,0.5 5,1.35C14.01,5.08 12,8.3 12,12s2.01,6.92 5,8.65C15.53,21.5 13.82,22 12,22C6.48,22 2,17.52 2,12S6.48,2 12,2zM19.5,5l0.85,1.9 1.9,0.85 -1.9,0.85 -0.85,1.9 -0.85,-1.9 -1.9,-0.85 1.9,-0.85z", even: false },
+};
+const prayerIcon = (name) => { const i = PRAYER_ICONS[name]; return i ? `<svg viewBox="0 0 24 24"><path${i.even ? ' fill-rule="evenodd"' : ""} d="${i.d}"/></svg>` : ""; };
 function tickPrayer() {
   if (!prayerNextAt) { $("prayerBig").textContent = ""; return; }
   const m = Math.max(0, Math.ceil((prayerNextAt - Date.now()) / 60000));
-  $("prayerBig").innerHTML = esc(prayerNextName + " " + prayerNextTime)
+  $("prayerBig").innerHTML = prayerIcon(prayerNextName) + esc(prayerNextName + " " + prayerNextTime)
     + "<small>" + (prayerNextTomorrow ? "tomorrow · " : "") + "in " + (m >= 60 ? Math.floor(m / 60) + "h " + m % 60 + "m" : m + "m") + "</small>";
 }
 setInterval(() => { if (tvOpen()) loadDashboard(); }, 3000);

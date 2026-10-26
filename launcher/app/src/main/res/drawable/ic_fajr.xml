@@ -1,0 +1,4 @@
+<!-- Fajr: dawn, the sun about to rise (arrow up over the horizon). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="12dp" android:height="12dp" android:viewportWidth="24" android:viewportHeight="24">
+    <path android:fillColor="#FFFFFFFF" android:pathData="M12,1.5l3.5,3.5H13v3.5h-2V5H8.5zM2,19h20v2H2zM12,11c-3.04,0 -5.5,2.46 -5.5,5.5V17h11v-0.5C17.5,13.46 15.04,11 12,11zM3.4,11.4l1.4,-1.4 1.8,1.8 -1.4,1.4zM17.4,11.8l1.8,-1.8 1.4,1.4 -1.8,1.8z" />
+</vector>

@@ -114,7 +114,7 @@ final class Azan {
     private void remind(String prayer, LocalTime time, LocalDateTime now, LocalDateTime at) {
         long secs = java.time.Duration.between(now, at).getSeconds();
         long mins = Math.max(1, (secs + 59) / 60);
-        banner.showMessage(R.drawable.ic_crescent, 0xFFFFC857,
+        banner.showMessage(PrayerPanel.icon(prayer), 0xFFFFC857,
                 prayer + " in " + mins + " min · " + format(time), 8_000);
     }
 
@@ -140,7 +140,7 @@ final class Azan {
             return true;
         });
         player.start();
-        banner.showMessage(R.drawable.ic_crescent, 0xFFFFC857, "Azan " + prayer + " · " + time, 10_000);
+        banner.showMessage(PrayerPanel.icon(prayer), 0xFFFFC857, "Azan " + prayer + " · " + time, 10_000);
     }
 
     private void release() {

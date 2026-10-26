@@ -175,7 +175,7 @@ Open **http://\<TV IP\>:8486** on your phone, on the same Wi-Fi (Settings → Ph
 | Remote | Back, Home | Everywhere, through the launcher's accessibility service |
 | Remote | Screenshot (only shown while USB debugging is on) | Captures whatever is on the TV and shows it on the phone; **Save** downloads the PNG, or press and hold it to save to Photos. DRM video (Netflix, etc.) comes out black |
 | Remote | Play/Pause | Whatever is playing (Netflix, YouTube, RadioStream…) |
-| Remote | Vol −, Mute, Vol + | Everywhere; shows the TV's volume bar |
+| Remote | Vol −, Mute, Vol + | Everywhere; shows the TV's volume bar, and the new volume number (or *Muted*) on the phone for a moment |
 | TV | **Now Playing**: app, title and state, with Play/Pause, Stop and Open app | Everywhere |
 | TV | **Prayer times**: today's five, the next one highlighted with a countdown | Everywhere |
 | TV | **System**: CPU clock, RAM, storage, IP and network, Wi-Fi signal, uptime | Everywhere |

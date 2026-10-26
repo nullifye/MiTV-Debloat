@@ -755,16 +755,24 @@ final class RemoteApi {
                 return new Object[] {200, Http.ok()};
             case "volup":
                 am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
-                return new Object[] {200, Http.ok()};
+                return new Object[] {200, volume(am)};
             case "voldown":
                 am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
-                return new Object[] {200, Http.ok()};
+                return new Object[] {200, volume(am)};
             case "mute":
                 am.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_TOGGLE_MUTE, AudioManager.FLAG_SHOW_UI);
-                return new Object[] {200, Http.ok()};
+                return new Object[] {200, volume(am)};
             default:
                 return new Object[] {400, Http.err("Unknown key.")};
         }
+    }
+
+    /** The TV's volume after a volume key, so the phone can show the number. */
+    private static JSONObject volume(AudioManager am) {
+        return new Http.JSONObjectBuilder().put("ok", true)
+                .put("volume", am.getStreamVolume(AudioManager.STREAM_MUSIC))
+                .put("max", am.getStreamMaxVolume(AudioManager.STREAM_MUSIC))
+                .put("muted", am.isStreamMute(AudioManager.STREAM_MUSIC)).build();
     }
 
     private static void media(AudioManager am, int code) {

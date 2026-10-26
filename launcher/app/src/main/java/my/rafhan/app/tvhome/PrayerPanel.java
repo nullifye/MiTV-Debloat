@@ -43,6 +43,9 @@ final class PrayerPanel {
             "https://www.e-solat.gov.my/index.php?r=esolatApi/takwimsolat&period=month&zone=";
     private static final String[] KEYS = {"fajr", "dhuhr", "asr", "maghrib", "isha"};
     static final String[] NAMES = {"Fajr", "Dhuhr", "Asr", "Maghrib", "Isya"};
+    /** Dawn, midday sun, afternoon sun, sunset, night: one per prayer, in NAMES order. */
+    static final int[] ICONS = {R.drawable.ic_fajr, R.drawable.ic_dhuhr, R.drawable.ic_asr,
+            R.drawable.ic_maghrib, R.drawable.ic_isya};
     private static final String[] HIJRI_MONTHS = {"Muharam", "Safar", "Rabiulawal", "Rabiulakhir",
             "Jamadilawal", "Jamadilakhir", "Rejab", "Syaaban", "Ramadan", "Syawal", "Zulkaedah", "Zulhijjah"};
     // e-solat dates use Malay month abbreviations: "20-Okt-2026".
@@ -58,6 +61,8 @@ final class PrayerPanel {
     private final TextView hijriView, countdown, title;
     private final TextView[] times = new TextView[KEYS.length];
     private final TextView[] names = new TextView[KEYS.length];
+    private final ImageView[] icons = new ImageView[KEYS.length];
+    private final ImageView headerIcon; // the next prayer's icon, beside "PRAYER · zone"
 
     private JSONArray month;
     private YearMonth monthKey;
@@ -73,12 +78,12 @@ final class PrayerPanel {
 
         LinearLayout header = new LinearLayout(ctx);
         header.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView moon = new ImageView(ctx);
-        moon.setImageResource(R.drawable.ic_crescent);
-        moon.setImageTintList(ColorStateList.valueOf(DIM));
+        headerIcon = new ImageView(ctx);
+        headerIcon.setImageResource(R.drawable.ic_crescent); // until the times are known
+        headerIcon.setImageTintList(ColorStateList.valueOf(DIM));
         LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(px(12), px(12));
         mlp.setMarginEnd(px(5));
-        header.addView(moon, mlp);
+        header.addView(headerIcon, mlp);
         title = small("PRAYER · " + zone, DIM, 10.5f);
         header.addView(title);
         countdown = small("", NEXT, 10.5f);
@@ -103,11 +108,21 @@ final class PrayerPanel {
             times[i].setText("--:--");
             cell.addView(times[i], new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            // [icon] NAME under the time
+            LinearLayout label = new LinearLayout(ctx);
+            label.setGravity(Gravity.CENTER_VERTICAL);
+            icons[i] = new ImageView(ctx);
+            icons[i].setImageResource(ICONS[i]);
+            icons[i].setImageTintList(ColorStateList.valueOf(DIM));
+            LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(px(10), px(10));
+            ilp.setMarginEnd(px(4));
+            label.addView(icons[i], ilp);
             names[i] = small(NAMES[i].toUpperCase(Locale.ROOT), DIM, 9f);
+            label.addView(names[i]);
             LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
             nlp.topMargin = px(3);
-            cell.addView(names[i], nlp);
+            cell.addView(label, nlp);
         }
     }
 
@@ -180,7 +195,9 @@ final class PrayerPanel {
             int c = i == next ? NEXT : TEXT;
             times[i].setTextColor(c);
             names[i].setTextColor(i == next ? NEXT : DIM);
+            icons[i].setImageTintList(ColorStateList.valueOf(i == next ? NEXT : DIM));
         }
+        headerIcon.setImageResource(ICONS[next]);
         if (target != null) {
             long mins = (long) Math.ceil(Duration.between(LocalDateTime.of(today, now), target).getSeconds() / 60.0);
             long h = mins / 60, m = mins % 60;
@@ -325,6 +342,12 @@ final class PrayerPanel {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    /** The icon for a prayer name in NAMES; the crescent for anything else. */
+    static int icon(String name) {
+        for (int i = 0; i < NAMES.length; i++) if (NAMES[i].equals(name)) return ICONS[i];
+        return R.drawable.ic_crescent;
+    }
 
     private int px(float dps) {
         return Math.round(dps * dp);
