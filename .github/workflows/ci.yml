@@ -73,6 +73,10 @@ jobs:
           - { os: macos-14, target: aarch64-apple-darwin, exe: tvhome-tui, test: true }
           - { os: macos-14, target: x86_64-apple-darwin, exe: tvhome-tui, test: false }
           - { os: windows-latest, target: x86_64-pc-windows-msvc, exe: tvhome-tui.exe, test: true }
+          # Android phones, in Termux: 64-bit, and 32-bit for older phones. Built with the
+          # runner's Android NDK; API 24 (Android 7.0) is Termux's minimum.
+          - { os: ubuntu-latest, target: aarch64-linux-android, ndk: aarch64-linux-android24, exe: tvhome-tui, test: false }
+          - { os: ubuntu-latest, target: armv7-linux-androideabi, ndk: armv7a-linux-androideabi24, exe: tvhome-tui, test: false }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -89,6 +93,18 @@ jobs:
         with:
           workspaces: tui
           key: ${{ matrix.target }}
+
+      - name: Android NDK compiler
+        if: matrix.ndk
+        run: |
+          BIN="$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin"
+          T="$(echo '${{ matrix.target }}' | tr 'a-z-' 'A-Z_')"
+          t="$(echo '${{ matrix.target }}' | tr '-' '_')"
+          {
+            echo "CC_$t=$BIN/${{ matrix.ndk }}-clang"
+            echo "AR_$t=$BIN/llvm-ar"
+            echo "CARGO_TARGET_${T}_LINKER=$BIN/${{ matrix.ndk }}-clang"
+          } >> "$GITHUB_ENV"
 
       - name: Format
         run: cargo fmt --check

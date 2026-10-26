@@ -73,7 +73,10 @@ impl Store {
                 backup: app_dir.join("backup"),
                 backup_root: app_dir.join("backup"),
                 tv_file: app_dir.join(".tv"),
-                shots: app_dir.join("shots"),
+                // On a phone (Termux), where the gallery and file apps can see them.
+                shots: crate::setup::phone_downloads()
+                    .map(|d| d.join("TV screenshots"))
+                    .unwrap_or_else(|| app_dir.join("shots")),
                 repo: None,
                 app_dir,
             },

@@ -197,7 +197,7 @@ impl View {
 
 impl App {
     pub fn view(&self) -> View {
-        match &self.screen {
+        let v = match &self.screen {
             Screen::NeedAdb => self.need_adb(),
             Screen::GettingAdb => self.getting_adb(),
             Screen::ManualAdb => manual_adb(),
@@ -218,6 +218,11 @@ impl App {
             Screen::Confirm => self.confirm(),
             Screen::Running => self.running(),
             Screen::Help => self.help(),
+        };
+        if setup::termux() {
+            phone_words_view(v)
+        } else {
+            v
         }
     }
 
@@ -225,9 +230,22 @@ impl App {
 
     fn need_adb(&self) -> View {
         let mut v = View::new("One small thing first");
-        v.say("To talk to the TV, this computer needs a free helper from Google called");
-        v.say("Android Platform Tools (\"adb\"). It isn't installed yet.");
+        v.say("To talk to the TV, this computer needs a free helper from Google called Android Platform Tools (\"adb\"). It isn't installed yet.");
         v.gap();
+        if setup::termux() {
+            v.say(
+                "On this phone, Termux installs it. Run this in Termux, then choose Check again:",
+            );
+            v.gap();
+            v.bold("  pkg install android-tools");
+            v.push(first(choice(
+                "Check again",
+                "Once it's installed",
+                Act::CheckAdbAgain,
+            )));
+            v.push(choice("Quit", "", Act::Quit));
+            return v;
+        }
         if setup::platform_tools_url().is_some() {
             v.say("I can download it for you (about 10 MB). It goes into this app's own folder:");
             v.dim(format!(
@@ -279,8 +297,7 @@ impl App {
 
     fn find_tv(&self) -> View {
         let mut v = View::new("Find your TV");
-        v.say("Make sure the TV is on, on the same Wi-Fi as this computer, and has USB debugging");
-        v.say("turned on (not sure? choose \"How do I turn on USB debugging?\" below).");
+        v.say("Make sure the TV is on, on the same Wi-Fi as this computer, and has USB debugging turned on (not sure? choose \"How do I turn on USB debugging?\" below).");
         v.gap();
         match &self.scan {
             Some((n, t)) if n < t => v.color(
@@ -702,8 +719,7 @@ impl App {
             v.push(choice("Back", "", Act::Back));
             return v;
         }
-        v.say("Tick the apps to turn off (Space or click). Turned-off apps aren't deleted:");
-        v.say("\"Undo all changes\" turns them back on any time.");
+        v.say("Tick the apps to turn off (Space or click). Turned-off apps aren't deleted: \"Undo all changes\" turns them back on any time.");
         let (rec, opt) = self.cleanup_lists();
         let ticked = self.marks.len();
         v.push(first(button(
@@ -1274,10 +1290,16 @@ impl App {
     }
 
     /// The status line at the top of every screen.
-    pub fn header(&self) -> Vec<Span<'static>> {
+    pub fn header(&self, width: u16) -> Vec<Span<'static>> {
+        // A phone in portrait: leave out the TV's address and launcher version.
+        let narrow = width < 80;
         let mut v = vec![
             Span::styled(
-                " TV Home Setup ",
+                if narrow {
+                    " TV Home "
+                } else {
+                    " TV Home Setup "
+                },
                 Style::new()
                     .fg(Color::Black)
                     .bg(ACCENT)
@@ -1291,11 +1313,13 @@ impl App {
                 v.push(Span::raw(
                     format!("{} {}", t.brand, t.model).trim().to_string(),
                 ));
-                v.push(Span::styled(
-                    format!("  {}", t.serial),
-                    Style::new().fg(DIM),
-                ));
-                if let Some(lv) = &t.launcher_version {
+                if !narrow {
+                    v.push(Span::styled(
+                        format!("  {}", t.serial),
+                        Style::new().fg(DIM),
+                    ));
+                }
+                if let Some(lv) = t.launcher_version.as_ref().filter(|_| !narrow) {
                     v.push(Span::styled(
                         format!("  ·  TV Home {lv}"),
                         Style::new().fg(DIM),
@@ -1334,6 +1358,7 @@ fn manual_adb() -> View {
     v.bold("  macOS:                  brew install android-platform-tools");
     v.bold("  Ubuntu / Debian:        sudo apt install adb");
     v.bold("  Fedora:                 sudo dnf install android-tools");
+    v.bold("  Android phone (Termux): pkg install android-tools");
     v.gap();
     v.say("Then close this window, open a new terminal, and start this app again.");
     v.push(first(choice(
@@ -1350,12 +1375,9 @@ fn how_to() -> View {
     v.say("With the TV remote:");
     v.gap();
     v.say("  1. Open Settings → Device Preferences (or System) → About.");
-    v.say("  2. Select \"Build\" (Google TV: \"Android TV OS build\") 7 times, until it says");
-    v.say("     \"You are now a developer\".");
+    v.say("  2. Select \"Build\" (Google TV: \"Android TV OS build\") 7 times, until it says \"You are now a developer\".");
     v.say("  3. Go back to Device Preferences (or System) → Developer options.");
-    v.say("  4. Turn on \"USB debugging\". Some TVs call it \"Network debugging\" or \"ADB over network\".");
-    v.say("     Newer Google TVs may only have \"Wireless debugging\": turn that on and use");
-    v.say("     \"My TV shows a pairing code\" on the previous screen.");
+    v.say("  4. Turn on \"USB debugging\". Some TVs call it \"Network debugging\" or \"ADB over network\". Newer Google TVs may only have \"Wireless debugging\": turn that on and use \"My TV shows a pairing code\" on the previous screen.");
     v.say("  5. Note the TV's IP address: Settings → Network & Internet → your Wi-Fi.");
     v.gap();
     v.dim("The TV must run Android TV or Google TV 8.0 or newer, and be on the same Wi-Fi as this computer.");
@@ -1373,18 +1395,13 @@ impl App {
         v.say("  L shows everything this app did (E: only problems) · Q quits");
         v.gap();
         v.bold("Is it safe?");
-        v.say(
-            "  Before anything changes, you see what will happen and choose Start. Apps are only",
-        );
-        v.say("  turned off, never deleted, and \"Undo all changes\" puts everything back.");
+        v.say("  Before anything changes, you see what will happen and choose Start. Apps are only turned off, never deleted, and \"Undo all changes\" puts everything back.");
         v.gap();
         v.bold("When you're done");
-        v.say("  Quit (Q): the app offers to turn USB debugging off, because while it's on, anyone on");
-        v.say("  your Wi-Fi could control the TV.");
+        v.say("  Quit (Q): the app offers to turn USB debugging off, because while it's on, anyone on your Wi-Fi could control the TV.");
         v.gap();
         v.bold("If something goes wrong");
-        v.say("  • Can't find or connect to the TV: check it's on, on the same Wi-Fi, and USB debugging");
-        v.say("    is on. Restart the TV and try again.");
+        v.say("  • Can't find or connect to the TV: check it's on, on the same Wi-Fi, and USB debugging is on. Restart the TV and try again.");
         v.say("  • Home still opens the old home screen: install again with the Google TV box ticked.");
         v.say(
             "  • Everything this app did is in its log (L), also saved as tui.log in its folder.",
@@ -1462,6 +1479,45 @@ pub fn friendly_error(reason: &str) -> String {
     }
 }
 
+/// In Termux the app runs on a phone, not a computer: "this computer" → "this phone" and so on.
+/// The TV's own prompt, "Always allow from this computer", keeps its wording.
+pub fn phone_words(s: &str) -> String {
+    const KEEP: &str = "allow from this computer";
+    s.split(KEEP)
+        .map(|part| {
+            part.replace("this computer", "this phone")
+                .replace("your computer", "your phone")
+                .replace("the computer", "the phone")
+        })
+        .collect::<Vec<_>>()
+        .join(KEEP)
+}
+
+fn phone_words_line(l: Line<'static>) -> Line<'static> {
+    let spans = l
+        .spans
+        .into_iter()
+        .map(|sp| Span::styled(phone_words(&sp.content), sp.style))
+        .collect::<Vec<_>>();
+    Line::from(spans).style(l.style)
+}
+
+fn phone_words_view(mut v: View) -> View {
+    v.title = phone_words(&v.title);
+    v.body = v.body.into_iter().map(phone_words_line).collect();
+    v.after = v.after.into_iter().map(phone_words_line).collect();
+    for i in &mut v.items {
+        match &mut i.kind {
+            Kind::Choice { title, desc } | Kind::Check { title, desc, .. } => {
+                *title = phone_words(title);
+                *desc = phone_words(desc);
+            }
+            Kind::Button(t) | Kind::Heading(t) => *t = phone_words(t),
+        }
+    }
+    v
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1475,6 +1531,16 @@ mod tests {
         assert!(friendly_error("Failure [INSTALL_FAILED_OLDER_SDK]").contains("too old"));
         assert!(friendly_error("weird").contains("try again"));
         assert!(friendly_error("Home didn't come up: Home opens X, so the apps it switched off were switched back on").contains("Nothing is broken"));
+    }
+
+    #[test]
+    fn phone_wording_keeps_the_tvs_own_prompt() {
+        assert_eq!(
+            phone_words(
+                "Is this computer online? Tick \"Always allow from this computer\" on your computer."
+            ),
+            "Is this phone online? Tick \"Always allow from this computer\" on your phone."
+        );
     }
 
     #[test]

@@ -24,6 +24,10 @@ From [Releases](https://github.com/nullifye/MiTV-Debloat/releases/latest), under
 | Mac with Apple chip (M1 or newer) | `tvhome-tui-<version>-aarch64-apple-darwin.tar.gz` |
 | Mac with Intel chip | `tvhome-tui-<version>-x86_64-apple-darwin.tar.gz` |
 | Linux | `tvhome-tui-<version>-x86_64-unknown-linux-gnu.tar.gz` |
+| Android phone, in Termux (most phones) | `tvhome-tui-<version>-aarch64-linux-android.tar.gz` |
+| Android phone, in Termux (older 32-bit phones) | `tvhome-tui-<version>-armv7-linux-androideabi.tar.gz` |
+
+The middle part of each name is the kind of computer it's built for: chip, maker, system. Linux has no single maker, so it says `unknown`.
 
 Not sure which Mac you have? Apple menu → **About This Mac**: it says *Chip: Apple…* or *Processor: Intel…*.
 
@@ -35,8 +39,28 @@ Unpack it, then start it:
   ~/Downloads/tvhome-tui
   ```
 - **Linux:** `tar -xzf tvhome-tui-*.tar.gz && ./tvhome-tui`
+- **Android phone:** see [Run it on your phone](#run-it-on-your-phone-termux).
 
 The window works best quite large (about 110 × 32 characters). Make it bigger if things look cut off.
+
+## Run it on your phone (Termux)
+
+No computer? The app also runs on an Android phone, in [Termux](https://termux.dev) (get it from F-Droid or GitHub; the Play Store version is outdated). The phone and the TV must be on the same Wi-Fi.
+
+1. In Termux, install adb and allow access to the phone's Downloads folder (for screenshots and support reports):
+   ```bash
+   pkg install android-tools
+   termux-setup-storage
+   ```
+2. Get the app. Replace `<version>` with the newest version on [Releases](https://github.com/nullifye/MiTV-Debloat/releases/latest), for example `1.10.3`. In Termux, `uname -m` says `aarch64` on most phones (use the `aarch64-linux-android` file) or `armv7l` on older ones (`armv7-linux-androideabi`):
+   ```bash
+   curl -LO https://github.com/nullifye/MiTV-Debloat/releases/latest/download/tvhome-tui-<version>-aarch64-linux-android.tar.gz
+   tar -xzf tvhome-tui-*.tar.gz
+   ./tvhome-tui
+   ```
+3. Follow it as below. Tap a choice to pick it; the extra-keys row above the keyboard has Esc and the arrows. Turning the phone sideways shows more at once; upright works too, and on a long page ↑ and ↓ scroll the text.
+
+The TV asks "Allow USB debugging?" for the phone: tick **Always allow from this computer** (the TV's words) and choose OK.
 
 ## 2. Follow it
 

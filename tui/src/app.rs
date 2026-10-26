@@ -84,6 +84,10 @@ pub struct App {
     pub item_rects: Vec<(usize, Rect)>,
     /// Lines scrolled in the area under the choices (commands, logcat).
     pub after_scroll: u16,
+    /// The screen didn't fit, so its text and choices scroll as one (ui.rs draws it so)...
+    pub flow_active: bool,
+    /// ...and ↑ on the first choice scrolled this many lines of text back into view.
+    pub flow_up: u16,
 
     pub store: Store,
     pub catalog: Catalog,
@@ -167,6 +171,8 @@ impl App {
             focus: None,
             item_rects: Vec::new(),
             after_scroll: 0,
+            flow_active: false,
+            flow_up: 0,
             catalog: Catalog::builtin(),
             config: Config::load(&store),
             log: Log::new(Some(store.log_file())),
@@ -235,14 +241,27 @@ impl App {
     }
 
     fn notice(&mut self, text: impl Into<String>) {
-        self.modal = Some(Modal::Notice(text.into()));
+        let t = text.into();
+        let t = if setup::termux() {
+            crate::screens::phone_words(&t)
+        } else {
+            t
+        };
+        self.modal = Some(Modal::Notice(t));
     }
 
     fn input(&mut self, purpose: Input, title: &str, hint: &str, value: String) {
+        let words = |s: &str| {
+            if setup::termux() {
+                crate::screens::phone_words(s)
+            } else {
+                s.to_string()
+            }
+        };
         self.modal = Some(Modal::Input {
             purpose,
-            title: title.into(),
-            hint: hint.into(),
+            title: words(title),
+            hint: words(hint),
             value,
         });
     }
@@ -260,6 +279,7 @@ impl App {
         self.screen = s;
         self.focus = None;
         self.after_scroll = 0;
+        self.flow_up = 0;
         self.searching = false;
         match self.screen {
             Screen::Install if !self.releases_loaded || self.releases_error.is_some() => {
@@ -390,8 +410,13 @@ impl App {
             Act::SupportReport => match crate::report::save(self) {
                 Ok(path) => self.notice(format!(
                     "Saved a support report:\n\n    {}\n\nIt lists this computer, the TV and what the app did (no passwords or \
-                     personal files). Attach it when you ask for help.",
-                    path.display()
+                     personal files). Attach it when you ask for help.{}",
+                    path.display(),
+                    if setup::termux() && setup::phone_downloads().is_none() {
+                        "\n\nTo save it in the phone's Downloads folder instead, run termux-setup-storage once."
+                    } else {
+                        ""
+                    }
                 )),
                 Err(e) => self.notice(format!("Couldn't save the report: {e:#}")),
             },
@@ -839,6 +864,20 @@ impl App {
             .focused(&items)
             .and_then(|f| sel.iter().position(|&s| s == f))
             .unwrap_or(0) as isize;
+        // A screen too tall for the window: ↑ past the first choice shows the text above it,
+        // ↓ scrolls back before moving on.
+        if self.flow_active {
+            if d < 0 && cur == 0 {
+                self.flow_up = self
+                    .flow_up
+                    .saturating_add(d.unsigned_abs().min(100) as u16);
+                return;
+            }
+            if d > 0 && self.flow_up > 0 {
+                self.flow_up = self.flow_up.saturating_sub(d.min(100) as u16);
+                return;
+            }
+        }
         let next = (cur + d).clamp(0, sel.len() as isize - 1) as usize;
         self.focus = Some(sel[next]);
     }

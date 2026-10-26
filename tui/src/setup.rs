@@ -32,6 +32,23 @@ pub fn platform_tools_url() -> Option<&'static str> {
     }
 }
 
+/// Running in Termux on an Android phone: adb comes from `pkg install android-tools`.
+pub fn termux() -> bool {
+    std::env::var_os("TERMUX_VERSION").is_some()
+        || std::env::var("PREFIX").is_ok_and(|p| p.contains("com.termux"))
+}
+
+/// The phone's Downloads folder as Termux sees it (`~/storage/downloads`, there once
+/// `termux-setup-storage` has been run), else `None`.
+pub fn phone_downloads() -> Option<PathBuf> {
+    if !termux() {
+        return None;
+    }
+    dirs::home_dir()
+        .map(|h| h.join("storage").join("downloads"))
+        .filter(|d| d.is_dir())
+}
+
 /// Where the app keeps its own copy of adb.
 pub fn local_adb(app_dir: &Path) -> PathBuf {
     let exe = if cfg!(windows) { "adb.exe" } else { "adb" };

@@ -26,6 +26,7 @@ pub fn save(app: &App) -> Result<PathBuf> {
     );
     let dir = dirs::download_dir()
         .filter(|d| d.is_dir())
+        .or_else(crate::setup::phone_downloads)
         .unwrap_or_else(|| app.store.app_dir.clone());
     fs::create_dir_all(&dir)?;
     let time = LogEntry::now(Level::Info, "").time.replace(':', "");

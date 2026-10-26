@@ -23,11 +23,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
         Constraint::Length(1),
     ])
     .areas(area);
-    f.render_widget(Paragraph::new(Line::from(app.header())), top);
+    f.render_widget(Paragraph::new(Line::from(app.header(top.width))), top);
 
     let view = app.view();
     draw_view(f, app, &view, body);
-    f.render_widget(Paragraph::new(hint_line(app)), hint);
+    f.render_widget(Paragraph::new(hint_line(app, hint.width)), hint);
 
     if app.show_log {
         draw_log(f, app, area.inner(Margin::new(2, 1)));
@@ -91,7 +91,9 @@ fn dim(s: &str) -> Span<'static> {
     Span::styled(s.to_string(), Style::new().fg(DIM))
 }
 
-fn hint_line(app: &App) -> Line<'static> {
+fn hint_line(app: &App, width: u16) -> Line<'static> {
+    // A phone (Termux) in portrait: the same keys, fewer words.
+    let narrow = width < 80;
     if app.screen == Screen::Running && app.outcome.is_none() {
         return Line::from(vec![
             dim(" Working… "),
@@ -99,33 +101,37 @@ fn hint_line(app: &App) -> Line<'static> {
             dim(" shows every command as it runs"),
         ]);
     }
+    let gap = if narrow { " " } else { "  " };
+    let word = |w: &'static str| if narrow { gap } else { w };
     let mut v = vec![
         dim(" "),
         key("↑↓"),
-        dim(" choose  "),
+        dim(word(" choose  ")),
         key("Enter"),
-        dim(" select  "),
+        dim(word(" select  ")),
     ];
     if matches!(
         app.screen,
         Screen::Cleanup | Screen::CleanupAll | Screen::Install | Screen::Undo
     ) {
-        v.extend([key("Space"), dim(" tick  ")]);
+        v.extend([key("Space"), dim(word(" tick  "))]);
     }
     if app.screen == Screen::CleanupAll {
-        v.extend([key("/"), dim(" search  ")]);
+        v.extend([key("/"), dim(word(" search  "))]);
     }
     v.extend([
         key("Esc"),
-        dim(" back  "),
+        dim(word(" back  ")),
         key("L"),
-        dim(" log  "),
+        dim(if narrow { " log " } else { " log  " }),
         key("?"),
-        dim(" help  "),
+        dim(if narrow { " help " } else { " help  " }),
         key("Q"),
         dim(" quit   "),
     ]);
-    v.push(dim("(the mouse works too)"));
+    if !narrow {
+        v.push(dim("(the mouse works too)"));
+    }
     Line::from(v)
 }
 
@@ -140,13 +146,27 @@ fn draw_view(f: &mut Frame, app: &mut App, view: &View, area: Rect) {
     f.render_widget(outer, area);
 
     // Text, then a progress bar, then the choices, then extra lines (steps, commands, logcat).
-    let body_h = if view.body.is_empty() {
+    // The text's height counts wrapped lines: on a phone (Termux) most lines wrap.
+    let body_lines = wrap_body(&view.body, inner.width);
+    let body = Paragraph::new(body_lines.clone()).wrap(Wrap { trim: false });
+    let body_need = if view.body.is_empty() {
         0
     } else {
-        (view.body.len() as u16 + 1).min(inner.height.saturating_sub(3))
+        body.line_count(inner.width) as u16 + 1
     };
     let gauge_h = if view.gauge.is_some() { 2 } else { 0 };
-    let items_h: u16 = view.items.iter().map(item_height).sum();
+    let items_h: u16 = view
+        .items
+        .iter()
+        .map(|i| item_lines(i, false, inner.width).len() as u16)
+        .sum();
+    // Too tall for the screen (a phone): text and choices scroll together, so nothing is cut off.
+    app.flow_active = false;
+    if view.after.is_empty() && view.gauge.is_none() && body_need + items_h > inner.height {
+        draw_flow(f, app, view, &body_lines, inner);
+        return;
+    }
+    let body_h = body_need.min(inner.height.saturating_sub(3));
     let rest = inner.height.saturating_sub(body_h + gauge_h);
     let items_area_h = if view.after.is_empty() {
         rest
@@ -160,10 +180,7 @@ fn draw_view(f: &mut Frame, app: &mut App, view: &View, area: Rect) {
         Constraint::Min(0),
     ])
     .areas(inner);
-    f.render_widget(
-        Paragraph::new(view.body.clone()).wrap(Wrap { trim: false }),
-        b,
-    );
+    f.render_widget(body, b);
     if let Some((ratio, label)) = &view.gauge {
         f.render_widget(
             Gauge::default()
@@ -196,12 +213,240 @@ fn draw_view(f: &mut Frame, app: &mut App, view: &View, area: Rect) {
     }
 }
 
-fn item_height(i: &Item) -> u16 {
-    match &i.kind {
-        Kind::Choice { desc, .. } | Kind::Check { desc, .. } if !desc.is_empty() => 2,
-        Kind::Heading(t) if t.is_empty() => 1,
-        Kind::Heading(_) => 2,
-        _ => 1,
+/// Words of `text` in lines no wider than `width`: the first starts with `first`, the rest with
+/// `rest` (a hanging indent). A word longer than a line (a folder path) is split across lines.
+pub fn wrap_words(text: &str, width: u16, first: &str, rest: &str) -> Vec<String> {
+    let w = |s: &str| Span::raw(s.to_string()).width();
+    let width = width.max(8) as usize;
+    let room = width.saturating_sub(w(rest)).max(4);
+    let mut words: Vec<String> = Vec::new();
+    for word in text.split(' ').filter(|x| !x.is_empty()) {
+        let chars: Vec<char> = word.chars().collect();
+        if w(word) <= room {
+            words.push(word.to_string());
+        } else {
+            words.extend(chars.chunks(room).map(|c| c.iter().collect::<String>()));
+        }
+    }
+    let mut out = Vec::new();
+    let mut line = first.to_string();
+    let mut empty = true;
+    for word in &words {
+        let candidate = if empty {
+            format!("{line}{word}")
+        } else {
+            format!("{line} {word}")
+        };
+        if w(&candidate) <= width || empty {
+            line = candidate;
+            empty = false;
+        } else {
+            out.push(line);
+            line = format!("{rest}{word}");
+        }
+    }
+    out.push(line);
+    out
+}
+
+/// Leading spaces plus a bullet (`• `, `- `, `1. `): wrapped lines line up under the text.
+fn hanging_indent(text: &str) -> (String, String, String) {
+    let lead = text.len() - text.trim_start().len();
+    let (pad, after) = text.split_at(lead);
+    let marker_len = ["• ", "- ", "⚠  "]
+        .iter()
+        .find(|m| after.starts_with(**m))
+        .map(|m| m.len())
+        .or_else(|| {
+            let digits = after.chars().take_while(|c| c.is_ascii_digit()).count();
+            (digits > 0 && after[digits..].starts_with(". ")).then_some(digits + 2)
+        })
+        .unwrap_or(0);
+    let (marker, words) = after.split_at(marker_len);
+    let first = format!("{pad}{marker}");
+    let rest = " ".repeat(Span::raw(first.clone()).width());
+    (first, rest, words.to_string())
+}
+
+/// The text above the choices, wrapped with hanging indents. Lines made of several styled
+/// pieces are left whole (the paragraph wraps them).
+fn wrap_body(body: &[Line<'static>], width: u16) -> Vec<Line<'static>> {
+    let mut out = Vec::new();
+    for l in body {
+        if l.spans.len() != 1 || l.width() <= width as usize {
+            out.push(l.clone());
+            continue;
+        }
+        let span = &l.spans[0];
+        let (first, rest, words) = hanging_indent(&span.content);
+        for piece in wrap_words(&words, width, &first, &rest) {
+            out.push(Line::from(Span::styled(piece, span.style)).style(l.style));
+        }
+    }
+    out
+}
+
+/// One choice as lines, its title and description wrapped to `width`.
+fn item_lines(item: &Item, sel: bool, width: u16) -> Vec<Line<'static>> {
+    let marker = || Span::styled(if sel { "▶ " } else { "  " }, Style::new().fg(ACCENT));
+    let desc_lines = |desc: &str, indent: &str| -> Vec<Line<'static>> {
+        if desc.is_empty() {
+            return Vec::new();
+        }
+        wrap_words(desc, width, indent, indent)
+            .into_iter()
+            .map(|d| Line::from(Span::styled(d, Style::new().fg(DIM))))
+            .collect()
+    };
+    match &item.kind {
+        Kind::Choice { title, desc } => {
+            let style = if sel {
+                SELECTED
+            } else {
+                Style::new().add_modifier(Modifier::BOLD)
+            };
+            let mut v: Vec<Line> = wrap_words(title, width.saturating_sub(4), "", "")
+                .into_iter()
+                .enumerate()
+                .map(|(n, t)| {
+                    Line::from(vec![
+                        if n == 0 { marker() } else { Span::raw("  ") },
+                        Span::styled(format!(" {t} "), style),
+                    ])
+                })
+                .collect();
+            v.extend(desc_lines(desc, "     "));
+            v
+        }
+        Kind::Check { on, title, desc } => {
+            let style = if sel { SELECTED } else { Style::new() };
+            let mut v: Vec<Line> = wrap_words(title, width.saturating_sub(7), "", "")
+                .into_iter()
+                .enumerate()
+                .map(|(n, t)| {
+                    Line::from(vec![
+                        if n == 0 { marker() } else { Span::raw("  ") },
+                        if n == 0 {
+                            Span::styled(
+                                if *on { "[✓] " } else { "[ ] " },
+                                Style::new()
+                                    .fg(if *on { OK } else { DIM })
+                                    .add_modifier(Modifier::BOLD),
+                            )
+                        } else {
+                            Span::raw("    ")
+                        },
+                        Span::styled(format!("{t} "), style),
+                    ])
+                })
+                .collect();
+            v.extend(desc_lines(desc, "        "));
+            v
+        }
+        Kind::Button(label) => vec![Line::from(vec![
+            marker(),
+            Span::styled(
+                format!("  {label}  "),
+                if sel {
+                    SELECTED
+                } else {
+                    Style::new()
+                        .fg(Color::White)
+                        .bg(Color::Indexed(238))
+                        .add_modifier(Modifier::BOLD)
+                },
+            ),
+        ])],
+        Kind::Heading(t) if t.is_empty() => vec![Line::default()],
+        Kind::Heading(t) => std::iter::once(Line::default())
+            .chain(wrap_words(t, width, "", "").into_iter().map(|h| {
+                Line::from(Span::styled(
+                    h,
+                    Style::new().fg(WARN).add_modifier(Modifier::BOLD),
+                ))
+            }))
+            .collect(),
+    }
+}
+
+/// The text and the choices as one column that scrolls to keep the selected choice in view.
+/// ↑ on the first choice scrolls the text above it back into view (`app.flow_up`).
+fn draw_flow(f: &mut Frame, app: &mut App, view: &View, body: &[Line<'static>], area: Rect) {
+    app.item_rects.clear();
+    app.flow_active = true;
+    let focused = app.focused(&view.items);
+    // (lines, height, item index), top to bottom.
+    let mut chunks: Vec<(Vec<Line>, u16, Option<usize>)> = body
+        .iter()
+        .map(|l| {
+            let h = Paragraph::new(l.clone())
+                .wrap(Wrap { trim: false })
+                .line_count(area.width) as u16;
+            (vec![l.clone()], h.max(1), None)
+        })
+        .collect();
+    if !body.is_empty() {
+        chunks.push((vec![Line::default()], 1, None));
+    }
+    for (i, item) in view.items.iter().enumerate() {
+        let lines = item_lines(item, focused == Some(i), area.width);
+        let h = lines.len() as u16;
+        chunks.push((lines, h, Some(i)));
+    }
+    // Scrolled just enough for the selected choice to show, less what ↑ scrolled back.
+    let mut top = 0u16;
+    let mut auto = 0u16;
+    for c in &chunks {
+        if c.2.is_some() && c.2 == focused {
+            auto = (top + c.1).saturating_sub(area.height);
+        }
+        top += c.1;
+    }
+    app.flow_up = app.flow_up.min(auto);
+    let offset = auto - app.flow_up;
+    // Markers in the empty rows just above and below: there's more to see.
+    let mark = |f: &mut Frame, y: u16, text: &'static str| {
+        let w = text.chars().count() as u16;
+        let rect = Rect {
+            x: area.x + area.width.saturating_sub(w),
+            y,
+            width: w.min(area.width),
+            height: 1,
+        };
+        f.render_widget(
+            Paragraph::new(Span::styled(text, Style::new().fg(DIM))),
+            rect,
+        );
+    };
+    if offset > 0 && area.y > 0 {
+        mark(f, area.y - 1, "↑ more");
+    }
+    if top > offset + area.height {
+        mark(f, area.y + area.height, "↓ more");
+    }
+    let mut t = 0u16;
+    for (lines, h, idx) in chunks {
+        let (from, to) = (t.max(offset), (t + h).min(offset + area.height));
+        if from < to {
+            let rect = Rect {
+                x: area.x,
+                y: area.y + from - offset,
+                width: area.width,
+                height: to - from,
+            };
+            f.render_widget(
+                Paragraph::new(lines)
+                    .wrap(Wrap { trim: false })
+                    .scroll((from - t, 0)),
+                rect,
+            );
+            if let Some(i) = idx
+                && view.items[i].selectable()
+            {
+                app.item_rects.push((i, rect));
+            }
+        }
+        t += h;
     }
 }
 
@@ -211,8 +456,14 @@ fn draw_items(f: &mut Frame, app: &mut App, view: &View, area: Rect) {
         return;
     }
     let focused = app.focused(&view.items);
+    let all: Vec<Vec<Line>> = view
+        .items
+        .iter()
+        .enumerate()
+        .map(|(i, item)| item_lines(item, focused == Some(i), area.width))
+        .collect();
     // Scroll so the selected item is visible.
-    let heights: Vec<u16> = view.items.iter().map(item_height).collect();
+    let heights: Vec<u16> = all.iter().map(|l| l.len() as u16).collect();
     let mut start = 0;
     if let Some(fi) = focused {
         let mut used: u16 = heights[..=fi].iter().sum();
@@ -222,7 +473,7 @@ fn draw_items(f: &mut Frame, app: &mut App, view: &View, area: Rect) {
         }
     }
     let mut y = area.y;
-    for (i, item) in view.items.iter().enumerate().skip(start) {
+    for (i, lines) in all.into_iter().enumerate().skip(start) {
         let h = heights[i];
         if y + h > area.y + area.height {
             break;
@@ -233,76 +484,8 @@ fn draw_items(f: &mut Frame, app: &mut App, view: &View, area: Rect) {
             width: area.width,
             height: h,
         };
-        let sel = focused == Some(i);
-        let marker = Span::styled(if sel { "▶ " } else { "  " }, Style::new().fg(ACCENT));
-        let lines: Vec<Line> = match &item.kind {
-            Kind::Choice { title, desc } => {
-                let mut v = vec![Line::from(vec![
-                    marker,
-                    Span::styled(
-                        format!(" {title} "),
-                        if sel {
-                            SELECTED
-                        } else {
-                            Style::new().add_modifier(Modifier::BOLD)
-                        },
-                    ),
-                ])];
-                if !desc.is_empty() {
-                    v.push(Line::from(Span::styled(
-                        format!("     {desc}"),
-                        Style::new().fg(DIM),
-                    )));
-                }
-                v
-            }
-            Kind::Check { on, title, desc } => {
-                let mut v = vec![Line::from(vec![
-                    marker,
-                    Span::styled(
-                        if *on { "[✓] " } else { "[ ] " },
-                        Style::new()
-                            .fg(if *on { OK } else { DIM })
-                            .add_modifier(Modifier::BOLD),
-                    ),
-                    Span::styled(
-                        format!("{title} "),
-                        if sel { SELECTED } else { Style::new() },
-                    ),
-                ])];
-                if !desc.is_empty() {
-                    v.push(Line::from(Span::styled(
-                        format!("        {desc}"),
-                        Style::new().fg(DIM),
-                    )));
-                }
-                v
-            }
-            Kind::Button(label) => vec![Line::from(vec![
-                marker,
-                Span::styled(
-                    format!("  {label}  "),
-                    if sel {
-                        SELECTED
-                    } else {
-                        Style::new()
-                            .fg(Color::White)
-                            .bg(Color::Indexed(238))
-                            .add_modifier(Modifier::BOLD)
-                    },
-                ),
-            ])],
-            Kind::Heading(t) if t.is_empty() => vec![Line::default()],
-            Kind::Heading(t) => vec![
-                Line::default(),
-                Line::from(Span::styled(
-                    t.clone(),
-                    Style::new().fg(WARN).add_modifier(Modifier::BOLD),
-                )),
-            ],
-        };
         f.render_widget(Paragraph::new(lines), rect);
-        if item.selectable() {
+        if view.items[i].selectable() {
             app.item_rects.push((i, rect));
         }
         y += h;
@@ -453,6 +636,23 @@ fn draw_modal(f: &mut Frame, app: &App, area: Rect) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn words_wrap_with_a_hanging_indent() {
+        let (first, rest, words) = hanging_indent("  • turns off 5 apps that show ads");
+        assert_eq!((first.as_str(), rest.as_str()), ("  • ", "    "));
+        assert_eq!(
+            wrap_words(&words, 20, &first, &rest),
+            vec!["  • turns off 5 apps", "    that show ads"]
+        );
+        let (first, rest, _) = hanging_indent("  12. Note the address");
+        assert_eq!((first.as_str(), rest.as_str()), ("  12. ", "      "));
+        // A word longer than a line (a folder path) is split, nothing is cut off.
+        let path = "/data/data/com.termux/files/home/storage/downloads";
+        let lines = wrap_words(path, 20, "  ", "  ");
+        assert!(lines.iter().all(|l| l.chars().count() <= 20), "{lines:?}");
+        assert_eq!(lines.concat().replace(' ', ""), path);
+    }
 
     #[test]
     fn every_symbol_the_screens_use_has_an_ascii_stand_in() {
