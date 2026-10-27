@@ -1,6 +1,6 @@
 [package]
 name = "tvhome-tui"
-version = "1.10.3"
+version = "1.10.4"
 edition = "2024"
 description = "Terminal app to set up an Android TV with the TV Home launcher: connect, install, debloat, restore."
 publish = false
