@@ -133,29 +133,23 @@ opt pm grant $PKG android.permission.PACKAGE_USAGE_STATS
 A shell cmd package set-home-activity $PKG/.MainActivity
 
 if [ "${1:-}" = "--disable-stock" ]; then
-  # Google TV: the setup app also answers HOME, at a higher priority than any launcher, so with only
-  # the stock launcher disabled Home lands on setup (or the stock launcher takes it back). Disable
-  # setup first. Not when it owns the saved Wi-Fi network: disabling it deletes that network
-  # (re-join Wi-Fi from Settings, or use Ethernet, then run this again). Logged, so restore.sh
-  # turns it back on; re-enable it before a factory reset. Phone casting may stop after a reboot
-  # while it's off (the Cast receiver reads its credentials from it).
+  # Google TV: the setup app also answers HOME (its RecoveryActivity), at a higher priority than
+  # any launcher, so with only the stock launcher disabled Home lands on setup. On Sony (Realtek)
+  # TVs com.realtek.advancesetting also starts the stock launcher by name on every Home press,
+  # which only stops once that launcher is disabled. So: setup first, then the stock launcher.
+  # Both are logged, so restore.sh turns them back on; re-enable them before a factory reset.
+  # Casting from a phone (Chromecast built-in) doesn't work while the stock launcher is off.
   SETUP=com.google.android.tungsten.setupwraith
   ENABLED="$(A shell pm list packages -e "$SETUP" | tr -d '\r' || true)"
   if printf '%s\n' "$ENABLED" | grep -qx "package:$SETUP"; then
-    WIFI="$(A shell dumpsys wifi | tr -d '\r' | grep -o 'cname=[^ ]*' || true)"
-    if printf '%s\n' "$WIFI" | grep -q setupwraith; then
-      # Leaving setup on and disabling the launcher would send Home to setup's recovery screen,
-      # so stop here: TV Home is installed, Home still opens Google TV's launcher.
-      echo "Google TV's setup app made this TV's Wi-Fi connection, so it can't be disabled (that would"
-      echo "delete the connection), and while it's on, Home can't be handed to this launcher. Nothing"
-      echo "was disabled. On the TV: Settings -> Network & Internet -> your Wi-Fi -> Forget network, then"
-      echo "join it again with its password (or use Ethernet), and run this again."
-      exit 1
-    else
-      scripts/disable.sh "$SETUP"
-    fi
+    scripts/disable.sh "$SETUP"
   fi
   STOCK="$(stock_home)"
+  # Not recorded (TV Home was already Home), but it's a Google TV: its launcher is the stock one.
+  if [ -z "$STOCK" ] && A shell pm list packages -e com.google.android.apps.tv.launcherx | tr -d '\r' \
+      | grep -qx package:com.google.android.apps.tv.launcherx; then
+    STOCK=com.google.android.apps.tv.launcherx/.home.HomeActivity
+  fi
   if [ -n "$STOCK" ]; then
     scripts/disable.sh "${STOCK%%/*}"
     A shell cmd package set-home-activity $PKG/.MainActivity >/dev/null

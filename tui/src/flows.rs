@@ -543,12 +543,10 @@ pub fn debugging_off(env: &mut Env) -> Plan {
 
 /// Hands Home over to TV Home. Android sends Home to the Home app with the highest priority, and
 /// only between equals to the one chosen with set-home-activity. An installed launcher gets 0;
-/// Google TV's launcher has 2 and its setup app 1. So every enabled Home app above 0 is switched
-/// off, the setup app first, plus the TV's recorded launcher.
-///
-/// Refuses (before anything changes) when the setup app made the TV's Wi-Fi connection: Android
-/// deletes an app's networks when it's disabled, and leaving it on means Home lands on its
-/// setup screen instead.
+/// Google TV's launcher has 2 and its setup app (its RecoveryActivity) 1. So every enabled Home
+/// app above 0 is switched off, the setup app first, plus the TV's recorded launcher. On Sony
+/// (Realtek) TVs this is also what stops `com.realtek.advancesetting` from starting Google TV's
+/// launcher by name on every Home press: with the launcher off, that start fails.
 fn handover_steps(env: &mut Env, p: &mut Plan, stock: Option<&str>) -> Result<()> {
     let adb = env.adb.clone();
     let enabled = env.installed(&["-e"]);
@@ -580,29 +578,10 @@ fn handover_steps(env: &mut Env, p: &mut Plan, stock: Option<&str>) -> Result<()
     // The setup app first: with the launcher gone first, Home would land on setup.
     off.sort_by_key(|p| p != GTV_SETUP);
 
-    if off.iter().any(|p| p == GTV_SETUP) {
-        let nets = device::wifi_networks_made_by_setup(&env.text(&["dumpsys", "wifi"]));
-        if !nets.is_empty() {
-            let name = match nets.iter().find(|n| *n != "?") {
-                Some(n) => format!("\"{n}\""),
-                None => "your Wi-Fi".to_string(),
-            };
-            bail!(
-                "One thing to fix on the TV first.\n\n\
-                 Google TV's setup app made this TV's Wi-Fi connection ({name}), and it also takes over \
-                 the Home button. TV Home can only become the home screen with that app switched off, \
-                 but switching it off would delete the Wi-Fi connection. Nothing was changed.\n\n\
-                 Fix it once, with the TV remote:\n\
-                 \x20 1. Settings → Network & Internet → {name} → Forget network.\n\
-                 \x20 2. Choose {name} again and type the Wi-Fi password.\n\n\
-                 The TV leaves the Wi-Fi for a moment, so this app loses it: choose \"Use a different TV\" \
-                 to connect again, then run this again.\n\n\
-                 (To install TV Home without making it the home screen, untick \"This TV has Google TV\".)"
-            );
-        }
+    if off.iter().any(|p| p == GTV_SETUP || p == GTV_LAUNCHER) {
         p.notes.push(
-            "Google TV setup will be disabled: phone casting may stop after a reboot while it's off. \
-             Restore turns it back on (do that before any factory reset)."
+            "While Google TV's home screen is off, casting from a phone (Chromecast built-in) doesn't \
+             work. Undo all changes turns it and Google TV setup back on (do that before any factory reset)."
                 .into(),
         );
     }
@@ -1258,8 +1237,7 @@ mod tests {
             .on("getprop ro.build.version.sdk", "34\n")
             .on("query-activities", SONY_HOMES)
             .on("resolve-activity", "com.google.android.apps.tv.launcherx/.home.HomeActivity\n")
-            .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\n")
-            .on("dumpsys wifi", "Network cname=com.android.settings x\n");
+            .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\n");
         let mut emit = |_e: EngineEvent| {};
         let mut env = Env {
             adb: &adb(),
@@ -1282,15 +1260,15 @@ mod tests {
     }
 
     #[test]
-    fn google_tv_handover_stops_when_setup_made_the_wifi() {
+    fn google_tv_handover_ignores_who_made_the_wifi() {
+        // Verified on a Sony Bravia (Android 14): both Google apps off, Wi-Fi stays connected.
         let d = tmp("gtvwifi");
         let store = Store::at(&d);
         let r = FakeRunner::new()
             .on("getprop ro.build.version.sdk", "34\n")
             .on("resolve-activity", "com.google.android.apps.tv.launcherx/.home.HomeActivity\n")
             .on("query-activities", SONY_HOMES)
-            .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\n")
-            .on("dumpsys wifi", "ID: 4 SSID: \"azmazali_5G\" PROVIDER-NAME: null\n cname=com.google.android.tungsten.setupwraith\n");
+            .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\n");
         let mut emit = |_e: EngineEvent| {};
         let mut env = Env {
             adb: &adb(),
@@ -1298,14 +1276,19 @@ mod tests {
             store: &store,
             emit: &mut emit,
         };
-        // Leaving setup on means Home lands on its setup screen: don't start at all.
-        let e = install(&mut env, &local_apk(&d), true)
-            .unwrap_err()
-            .to_string();
-        assert!(e.contains("\"azmazali_5G\" → Forget network"), "{e}");
-        assert!(e.contains("Nothing was changed"));
-        // Without the handover it still installs.
-        assert!(install(&mut env, &local_apk(&d), false).is_ok());
+        let l = lines(&install(&mut env, &local_apk(&d), true).unwrap());
+        assert!(
+            l.iter()
+                .any(|x| x.ends_with(&format!("disable-user --user 0 {GTV_SETUP}")))
+        );
+        assert!(
+            l.iter()
+                .any(|x| x.ends_with(&format!("disable-user --user 0 {GTV_LAUNCHER}")))
+        );
+        assert!(
+            !r.calls().iter().any(|c| c.contains("dumpsys wifi")),
+            "no Wi-Fi check"
+        );
     }
 
     #[test]
@@ -1319,8 +1302,7 @@ mod tests {
             .on("getprop ro.build.version.sdk", "34\n")
             .on("resolve-activity", "com.google.android.apps.tv.launcherx/.home.HomeActivity\n")
             .on("query-activities", &homes)
-            .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\npackage:com.sony.dtv.someotherhome\npackage:com.android.tv.settings\n")
-            .on("dumpsys wifi", "SSID: \"home\"\n cname=android.uid.system:1000\n");
+            .on("pm list packages -e", "package:com.google.android.tungsten.setupwraith\npackage:com.google.android.apps.tv.launcherx\npackage:com.sony.dtv.someotherhome\npackage:com.android.tv.settings\n");
         let mut emit = |_e: EngineEvent| {};
         let mut env = Env {
             adb: &adb(),

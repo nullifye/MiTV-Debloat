@@ -124,8 +124,9 @@ pub struct App {
     pub releases: Vec<Release>,
     pub releases_error: Option<String>,
     pub releases_loaded: bool,
+    /// A Google TV (its launcher is installed): installing also switches off Google TV's own home
+    /// screen and setup app, so Home opens TV Home. Detected, never asked.
     pub handover: bool,
-    handover_touched: bool,
     /// Set up my TV: also block ads on the whole TV.
     pub block_ads: bool,
 
@@ -203,7 +204,6 @@ impl App {
             releases_error: None,
             releases_loaded: false,
             handover: false,
-            handover_touched: false,
             block_ads: true,
             pkgs: Vec::new(),
             guard: Guard::default(),
@@ -462,10 +462,6 @@ impl App {
                 "Type or drag the APK file's path into this window, then press Enter.",
                 String::new(),
             ),
-            Act::ToggleHandover => {
-                self.handover = !self.handover;
-                self.handover_touched = true;
-            }
             Act::FetchReleases => {
                 self.releases_error = None;
                 self.releases_loaded = false;
@@ -781,8 +777,7 @@ impl App {
 
     fn on_status(&mut self, s: Status) {
         let state = s.tv.as_ref().map(|t| t.state.clone());
-        if !self.handover_touched
-            && let Some(t) = &s.tv
+        if let Some(t) = &s.tv
             && t.state == "device"
         {
             self.handover = t.google_tv;

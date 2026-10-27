@@ -89,9 +89,7 @@ scripts/build-and-install.sh --disable-stock
 
 This disables the TV's own launcher. On Google TV it first disables Google TV's setup app too (`com.google.android.tungsten.setupwraith`), which also answers Home and would otherwise take it. Both are logged, so `restore.sh` turns them back on. The script then presses Home and tells you whether this launcher came up.
 
-On Google TV, two things to know:
-- **Wi-Fi:** if the setup app owns the saved Wi-Fi network, disabling it would delete that network, so the script leaves it on and says so. Forget the network in Settings and join it again (or use Ethernet), then run the script again.
-- **Casting from your phone** may stop working after a reboot while the setup app is off. Run `scripts/restore.sh` before a factory reset.
+On Google TV, casting from your phone (Chromecast built-in) doesn't work while Google TV's own launcher is off. Run `scripts/restore.sh` before a factory reset.
 
 To update the launcher later: `git pull`, then run `scripts/build-and-install.sh` again. Your settings are kept.
 
@@ -236,20 +234,15 @@ Now press **Home** on the TV remote. You should see the new launcher. Done!
 
 **Google TV (Sony, TCL, Chromecast…): Home still opens Google TV?** Google TV keeps two apps on Home: its setup app and its own launcher. Disable both (they're only *disabled*, not removed; Step 11 turns them back on):
 
-1. First check the setup app doesn't own your Wi-Fi network:
-   ```bash
-   adb shell "dumpsys wifi | grep -o 'cname=[^ ]*'"
-   ```
-   If anything printed contains **`setupwraith`**, stop here: on the TV, go to Settings → Network & Internet, **forget** your Wi-Fi network, join it again, and run the check again. (Disabling the setup app while it owns the network deletes the network.)
-2. Disable the setup app, then the TV's own launcher (the package you wrote down in Step 5), and set Home again:
+1. Disable the setup app, then the TV's own launcher (the package you wrote down in Step 5), and set Home again:
    ```bash
    adb shell pm disable-user --user 0 com.google.android.tungsten.setupwraith
    adb shell pm disable-user --user 0 com.google.android.apps.tv.launcherx
    adb shell cmd package set-home-activity my.rafhan.app.tvhome/.MainActivity
    ```
-3. Press **Home**.
+2. Press **Home**.
 
-With the setup app off, casting from your phone may stop working after a reboot. Turn it back on (Step 11) before any factory reset.
+While Google TV's launcher is off, casting from your phone (Chromecast built-in) doesn't work. Turn both back on (Step 11) before any factory reset.
 
 **If Home ever shows a setup or recovery screen,** don't reboot. Bring the TV's launcher back:
 

@@ -207,31 +207,6 @@ pub fn a11y_without_ours(current: Option<&str>) -> Option<String> {
     (joined != c).then_some(joined)
 }
 
-/// The saved Wi-Fi networks Google TV's setup app created (`cname=` in `dumpsys wifi`, under the
-/// network's `SSID: "…"` line). Android deletes an app's networks when the app is disabled, so
-/// disabling the setup app would take the TV off these. `?` when the name couldn't be read.
-pub fn wifi_networks_made_by_setup(dump: &str) -> Vec<String> {
-    let mut ssid: Option<String> = None;
-    let mut v: Vec<String> = Vec::new();
-    for l in dump.lines() {
-        if let Some(i) = l.find("SSID: \"") {
-            let rest = &l[i + 7..];
-            ssid = rest.find('"').map(|j| rest[..j].to_string());
-        }
-        let made_by_setup = l
-            .split_whitespace()
-            .filter_map(|t| t.strip_prefix("cname="))
-            .any(|c| c.contains("setupwraith"));
-        if made_by_setup {
-            let name = ssid.clone().unwrap_or_else(|| "?".into());
-            if !v.contains(&name) {
-                v.push(name);
-            }
-        }
-    }
-    v
-}
-
 /// The package part of `settings get secure default_input_method` (`pkg/.Service`).
 pub fn ime_package(out: &str) -> Option<String> {
     setting_value(out).map(|v| package_of(&v).to_string())
@@ -523,21 +498,6 @@ mod tests {
         assert_eq!(a11y_without_ours(None), None);
         assert_eq!(setting_value("null\n"), None);
         assert_eq!(setting_value(" 1 \n").as_deref(), Some("1"));
-    }
-
-    #[test]
-    fn wifi_owner() {
-        let dump = "  , 0=ID: 0 SSID: \"OPPO A5pro 5G\" PROVIDER-NAME: null\n cuid=1000 cname=android.uid.system:1000 luid=1000\n\
-                    , 4=* ID: 4 SSID: \"azmazali_5G\" PROVIDER-NAME: null\n cuid=10123 cname=com.google.android.tungsten.setupwraith luid=1000\n\
-                    mPerID… ID: 4 SSID: \"azmazali_5G\"\n cname=com.google.android.tungsten.setupwraith\n";
-        assert_eq!(wifi_networks_made_by_setup(dump), vec!["azmazali_5G"]);
-        assert_eq!(
-            wifi_networks_made_by_setup("x cname=com.google.android.tungsten.setupwraith y"),
-            vec!["?"]
-        );
-        assert!(
-            wifi_networks_made_by_setup("SSID: \"home\"\ncname=com.android.settings").is_empty()
-        );
     }
 
     #[test]

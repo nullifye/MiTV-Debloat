@@ -45,7 +45,6 @@ pub enum Act {
     // install
     InstallRelease(usize),
     InstallFile,
-    ToggleHandover,
     FetchReleases,
     // clean up
     ToggleApp(String),
@@ -592,6 +591,9 @@ impl App {
         if self.block_ads {
             v.say("  • blocks ads on the whole TV");
         }
+        if self.handover {
+            v.say("  • switches off Google TV's own home screen, so Home opens TV Home (casting from a phone stops until you undo it)");
+        }
         v.say("  • checks Home works at the end; if it doesn't, it puts everything back");
         v.gap();
         v.dim("You see the full list before anything changes. \"Undo all changes\" reverses all of it.");
@@ -600,12 +602,6 @@ impl App {
             "Also block ads on the whole TV",
             "AdGuard's free ad-blocking DNS, for every app on the TV.",
             Act::ToggleBlockAds,
-        ));
-        v.push(check(
-            self.handover,
-            "This TV has Google TV (Sony, TCL, Chromecast, Hisense…)",
-            "Google TV keeps its own home screen: also switch that off so TV Home is used.",
-            Act::ToggleHandover,
         ));
         if latest.is_some() {
             v.push(first(button("Continue", Act::SetupAll)));
@@ -652,6 +648,9 @@ impl App {
             Some(i) => v.say(format!("On the TV now: TV Home {i}.")),
             None => v.say("TV Home isn't on this TV yet."),
         }
+        if self.handover {
+            v.dim("Google TV: its own home screen is switched off too, so Home opens TV Home. Casting from a phone stops until you undo it.");
+        }
         v.gap();
         let latest = flows::latest_with_apk(&self.releases);
         if let Some(l) = latest {
@@ -677,12 +676,6 @@ impl App {
                 Act::InstallRelease(idx),
             )));
         }
-        v.push(check(
-            self.handover,
-            "This TV has Google TV (Sony, TCL, Chromecast, Hisense…)",
-            "Google TV keeps its own home screen: also switch that off so TV Home is used. Undo turns it back on.",
-            Act::ToggleHandover,
-        ));
         let older: Vec<(usize, &github::Release)> = self
             .releases
             .iter()
@@ -1402,7 +1395,7 @@ impl App {
         v.gap();
         v.bold("If something goes wrong");
         v.say("  • Can't find or connect to the TV: check it's on, on the same Wi-Fi, and USB debugging is on. Restart the TV and try again.");
-        v.say("  • Home still opens the old home screen: install again with the Google TV box ticked.");
+        v.say("  • Home still opens the old home screen: install TV Home again (on Google TV it also switches Google TV's home screen off).");
         v.say(
             "  • Everything this app did is in its log (L), also saved as tui.log in its folder.",
         );
@@ -1452,7 +1445,7 @@ pub fn friendly_error(reason: &str) -> String {
                 .into()
         } else {
             "Home didn't open TV Home. Press Home on the TV remote and look; if the old home screen \
-             comes up, install again with the Google TV box ticked."
+             comes up, install TV Home again."
                 .into()
         };
     }
