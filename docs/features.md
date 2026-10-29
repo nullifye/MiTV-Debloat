@@ -11,7 +11,7 @@ Every feature in detail: what it shows, how to use it, and how it gets its data.
   - **Wi-Fi** shows the connection state by colour and opens Wi-Fi settings.
   - **Settings** (gear) opens the launcher's own Settings (see below); its last row, **About → TV settings**, opens the TV's Settings.
 - **Remote:**
-  - Down from the dock slides up to all other apps (5 per row). Up/Down always move exactly one row.
+  - Down from the dock slides up to all other apps, as many per row as the dock holds (5; 6 or 7 in **Settings → Home screen → Apps per row**). The tiles shrink so a row always fills the same width. Up/Down always move exactly one row.
   - Up from the dock goes to the top bar. Up from the top bar slides down the running-apps screen (see below).
   - Ends of the top bar and rows don't wrap.
   - Back returns to the dock.
@@ -100,7 +100,7 @@ The gear at the end of the top bar opens the launcher's Settings: categories on 
 
 | Category | Options |
 |---|---|
-| Home screen | Clock Auto / 12-hour / 24-hour, System card, Now Playing card, wallpaper dim (Off/Low/Medium/High), wallpaper (Bing daily photo, seven built-in photos, your pictures or none). A hidden card's column closes up. |
+| Home screen | Clock Auto / 12-hour / 24-hour, apps per row (5, 6 or 7: the dock and the app list), System card, Now Playing card, wallpaper dim (Off/Low/Medium/High), wallpaper (Bing daily photo, seven built-in photos, your pictures or none). A hidden card's column closes up. |
 | Prayer times | Zone (picker), prayer card on/off, azan on/off, reminder before prayer (Off / 5 / 10 / 15 / 30 min), play azan now |
 | Most used | Most used card on/off, week starts on (Monday / Sunday), leave out (app picker) |
 | Notifications | TV Home updates, Play Store updates, new HDMI devices, Bluetooth, connection status, low memory (each on/off), low-memory level 80/85/90 % |
@@ -253,7 +253,7 @@ Open **http://\<TV IP\>:8486** on your phone, on the same Wi-Fi (Settings → Ph
 
 ## Change the dock
 
-The dock holds **up to 5 apps**, in any order.
+The dock holds **one row of apps** (5 by default; **Settings → Home screen → Apps per row** sets 5, 6 or 7), in any order. Lowering the number hides the dock apps that no longer fit; they're kept and come back when you raise it again.
 
 **On the TV**, hold **OK** (or press **Menu**) on an app:
 - **On a dock app:**

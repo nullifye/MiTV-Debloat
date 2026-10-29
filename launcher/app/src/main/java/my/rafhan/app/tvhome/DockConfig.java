@@ -20,7 +20,27 @@ import java.util.concurrent.CopyOnWriteArrayList;
  * Edited from the TV (hold OK / Menu on a tile) and the phone remote; still hand-editable over ADB.
  */
 final class DockConfig {
-    static final int MAX = 5;
+    /** dock.txt keeps at most this many; the dock shows "apps per row" of them (5 to 7). */
+    static final int MAX = 7;
+
+    /** How many dock apps show (and app-list columns): Settings → Home screen → Apps per row. */
+    static int size(Context ctx) {
+        return LauncherSettings.choice(ctx, LauncherSettings.APPS_PER_ROW);
+    }
+
+    /**
+     * The dock to save: {@code shown} (the edited dock, left to right) followed by the saved apps
+     * that didn't fit after "apps per row" was lowered: not in {@code shownBefore}, still
+     * {@code installed}. They come back when the number goes up again.
+     */
+    static List<String> keepHidden(List<String> shown, List<String> saved, List<String> shownBefore,
+                                   java.util.Set<String> installed) {
+        List<String> out = new ArrayList<>(shown);
+        for (String p : saved) {
+            if (!shownBefore.contains(p) && !out.contains(p) && installed.contains(p)) out.add(p);
+        }
+        return out;
+    }
 
     interface Listener {
         void onDockChanged();

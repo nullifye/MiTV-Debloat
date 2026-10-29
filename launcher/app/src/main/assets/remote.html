@@ -653,13 +653,14 @@ const TOOL_ICONS = {
   add: '<svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>',
 };
 let appsData = [], dockEdit = null; // dockEdit: pkgs being edited, or null
-const DOCK_MAX = 5;
+let DOCK_MAX = 5; // the TV sends its "apps per row" with the apps
 
 let runningData = [], disabledData = [], showHidden = false;
 async function loadApps() {
   try {
     const r = await api("/api/apps");
     appsData = r.apps;
+    if (r.dockMax) DOCK_MAX = r.dockMax;
     renderApps();
   } catch (e) {}
   loadRunning();

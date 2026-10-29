@@ -54,6 +54,8 @@ final class RemoteSettings {
                 choice(LauncherSettings.CLOCK, "Clock", "Auto follows the TV's own setting",
                         new int[] {LauncherSettings.CLOCK_AUTO, LauncherSettings.CLOCK_12, LauncherSettings.CLOCK_24},
                         new String[] {"Auto", "12-hour", "24-hour"}),
+                choice(LauncherSettings.APPS_PER_ROW, "Apps per row", "The dock and the app list. More apps, smaller tiles",
+                        new int[] {5, 6, 7}, new String[] {"5", "6", "7"}),
                 toggle(LauncherSettings.SHOW_SYSTEM, "System card", "CPU, RAM, storage, network and USB debugging"),
                 toggle(LauncherSettings.SHOW_NOW, "Now Playing card", "Cover, title and controls while something plays"),
                 choice(LauncherSettings.WALL_DIM, "Wallpaper dim", "How dark the wallpaper is behind the cards",

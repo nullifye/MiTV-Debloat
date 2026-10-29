@@ -37,10 +37,25 @@ public class DockConfigTest {
 
     @Test
     public void cleanDropsNullsEmptiesAndDuplicatesAndCapsAtMax() {
-        List<String> input = Arrays.asList(null, "", "a", "a", "b", "c", "d", "e", "f");
+        List<String> input = Arrays.asList(null, "", "a", "a", "b", "c", "d", "e", "f", "g", "h");
         List<String> out = DockConfig.clean(input);
         assertEquals(DockConfig.MAX, out.size());
-        assertEquals(Arrays.asList("a", "b", "c", "d", "e"), out);
+        assertEquals(Arrays.asList("a", "b", "c", "d", "e", "f", "g"), out);
+    }
+
+    @Test
+    public void appsHiddenByFewerPerRowAreKeptAfterTheShownOnes() {
+        // Saved a..f; with 4 per row the dock shows a..d, e and f are hidden.
+        List<String> saved = Arrays.asList("a", "b", "c", "d", "e", "f");
+        List<String> shownBefore = Arrays.asList("a", "b", "c", "d");
+        java.util.Set<String> installed = new java.util.HashSet<>(Arrays.asList("a", "b", "c", "d", "e", "f", "x"));
+        // Removing b and adding x keeps e and f for when the row grows again.
+        assertEquals(Arrays.asList("a", "c", "d", "x", "e", "f"),
+                DockConfig.keepHidden(Arrays.asList("a", "c", "d", "x"), saved, shownBefore, installed));
+        // A removed app doesn't come back, and an uninstalled hidden one is dropped.
+        installed.remove("f");
+        assertEquals(Arrays.asList("a", "c", "d", "e"),
+                DockConfig.keepHidden(Arrays.asList("a", "c", "d"), saved, shownBefore, installed));
     }
 
     @Test

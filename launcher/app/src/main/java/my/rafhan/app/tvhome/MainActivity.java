@@ -79,10 +79,14 @@ public class MainActivity extends Activity {
     private static final int TOP = 0, DOCK = 1, GRID = 2, MENU = 3, NOW = 4, UP = 5, SETTINGS = 6;
     private static final float NOW_SCALE = 1.12f;
     private static final int RIGHT_CARD_W = 412; // System and Now Playing cards, dp
-    private static final int COLS = 5, DOCK_SIZE = DockConfig.MAX;
+    // Apps per row (Settings → Home screen): the dock and each app-list row, 5 to 7.
     private static final float TILE_SCALE = 1.1f, PILL_SCALE = 1.06f;
     // dp
-    private static final int TILE_W = 152, TILE_H = 86, COL_W = 172, ROW_PITCH = 132;
+    // Tile sizes for that many columns (applyGridSize): the row always spans ROW_W, the width
+    // five 172dp columns had, so tiles grow or shrink to fill it (5 per row: 152 x 86). The gap
+    // between tiles and their shape scale with them. dp.
+    private static final int ROW_W = 5 * 172, LABEL_GAP = 12, LABEL_ROOM = 46;
+    private int cols, tileW, tileH, colW, rowPitch;
     // The grid runs to the top of the screen (GRID_TOP 0) with its first row 70dp down, so the
     // row above scrolls up under the top edge (shaded by gridTopFade) instead of vanishing at a
     // hard edge 56dp down and leaving a blank band.
@@ -164,6 +168,10 @@ public class MainActivity extends Activity {
     private long dockStamp; // dock.txt as of the last load: reload if it changed behind our back
 
     private List<AppEntry> dock = new ArrayList<>();
+    // dock.txt as loaded, the part of it the dock shows, and the installed apps: dockPkgs() keeps
+    // the apps a lower "apps per row" hides.
+    private List<String> savedDock = new ArrayList<>(), shownDock = new ArrayList<>();
+    private Set<String> installedPkgs = new HashSet<>();
     private List<AppEntry> apps = new ArrayList<>();
 
     private int section = DOCK, topIdx, dockIdx, gridIdx, menuIdx, nowIdx, upIdx;
@@ -303,9 +311,10 @@ public class MainActivity extends Activity {
         glowDrawable.setColors(new int[] {Color.TRANSPARENT, Color.TRANSPARENT});
         glow.setBackground(glowDrawable);
 
+        applyGridSize();
         layoutPage();
 
-        grid.setLayoutManager(new GridLayoutManager(this, COLS));
+        grid.setLayoutManager(new GridLayoutManager(this, cols));
         grid.setItemAnimator(null);
         grid.setHasFixedSize(true);
         grid.setDescendantFocusability(ViewGroup.FOCUS_BLOCK_DESCENDANTS);
@@ -375,9 +384,27 @@ public class MainActivity extends Activity {
         return gridTop() - px(GRID_TOP);
     }
 
+    /** Columns and tile sizes for Settings → Home screen → Apps per row. */
+    private void applyGridSize() {
+        cols = DockConfig.size(this);
+        colW = ROW_W / cols;
+        tileW = Math.round(colW * 152f / 172f);
+        tileH = Math.round(tileW * 86f / 152f);
+        rowPitch = tileH + LABEL_ROOM;
+    }
+
+    /** Apps per row changed: new columns, tile sizes and dock length, tiles drawn again. */
+    private void onAppsPerRowChanged() {
+        applyGridSize();
+        layoutPage();
+        ((GridLayoutManager) grid.getLayoutManager()).setSpanCount(cols);
+        rendered.clear(); // tiles are drawn at their size
+        loadApps();
+    }
+
     private void layoutPage() {
         place(page, 0, gridTop() + screenH - px(GRID_TOP));
-        int bandH = px(TILE_H + 2 * BAND_PAD_V);
+        int bandH = px(tileH + 2 * BAND_PAD_V);
         int bandTop = screenH - px(PEEK + BAND_GAP) - bandH;
         place(findViewById(R.id.dockBand), bandTop, 0);
         int heroTop = bandTop - px(HERO_GAP + HERO_H);
@@ -389,7 +416,7 @@ public class MainActivity extends Activity {
         ViewGroup.LayoutParams flp = fade.getLayoutParams();
         flp.height = px(PEEK + BAND_GAP - 4);
         fade.setLayoutParams(flp);
-        int side = (screenW - px(COLS * COL_W)) / 2;
+        int side = (screenW - px(cols * colW)) / 2;
         grid.setPadding(side, px(GRID_PAD_TOP), side, px(GRID_PAD_BOTTOM));
     }
 
@@ -454,8 +481,8 @@ public class MainActivity extends Activity {
         tile.setBackgroundResource(R.drawable.tile_bg);
         tile.setClipToOutline(true);
         tile.setScaleType(ImageView.ScaleType.FIT_XY);
-        column.addView(tile, new FrameLayout.LayoutParams(px(TILE_W), px(TILE_H), Gravity.CENTER));
-        dockRow.addView(column, new LinearLayout.LayoutParams(px(COL_W), px(TILE_H)));
+        column.addView(tile, new FrameLayout.LayoutParams(px(tileW), px(tileH), Gravity.CENTER));
+        dockRow.addView(column, new LinearLayout.LayoutParams(px(colW), px(tileH)));
         return tile;
     }
 
@@ -516,8 +543,12 @@ public class MainActivity extends Activity {
         List<AppEntry> newDock = new ArrayList<>();
         for (String pkg : dockPkgs) {
             AppEntry e = byPkg.get(pkg);
-            if (e != null && !newDock.contains(e) && newDock.size() < DOCK_SIZE) newDock.add(e);
+            if (e != null && !newDock.contains(e) && newDock.size() < cols) newDock.add(e);
         }
+        savedDock = new ArrayList<>(dockPkgs);
+        shownDock = new ArrayList<>();
+        for (AppEntry e : newDock) shownDock.add(e.pkg);
+        installedPkgs = new HashSet<>(byPkg.keySet());
         List<AppEntry> newApps = new ArrayList<>(all);
         newApps.removeAll(newDock);
         usageScores = scores;
@@ -573,7 +604,7 @@ public class MainActivity extends Activity {
 
         // Dock first so the home row fills in before the grid below it.
         toRender.sort((a, b) -> Boolean.compare(!dock.contains(a), !dock.contains(b)));
-        int w = px(TILE_W), h = px(TILE_H);
+        int w = px(tileW), h = px(tileH);
         for (AppEntry e : toRender) {
             worker.execute(() -> {
                 Bitmap drawn = TileRenderer.render(this, e, w, h);
@@ -616,7 +647,7 @@ public class MainActivity extends Activity {
             apps = sorted;
             if (focusedPkg != null) gridIdx = Math.max(0, indexOf(apps, focusedPkg));
             adapter.notifyDataSetChanged();
-            if (section == GRID) grid.post(() -> scrollGridToRow(gridIdx / COLS, false));
+            if (section == GRID) grid.post(() -> scrollGridToRow(gridIdx / cols, false));
         }
         List<AppEntry> all = new ArrayList<>(dock);
         all.addAll(apps);
@@ -665,7 +696,7 @@ public class MainActivity extends Activity {
             section = GRID;
             gridIdx = g;
             page.setTranslationY(-gridShift());
-            grid.post(() -> scrollGridToRow(gridIdx / COLS, false));
+            grid.post(() -> scrollGridToRow(gridIdx / cols, false));
         } else if (!dock.isEmpty()) {
             section = DOCK;
             dockIdx = Math.max(0, d);
@@ -754,7 +785,7 @@ public class MainActivity extends Activity {
             setSystemVisible(!toGrid);
             nowPlaying.setVisible(!toGrid);
         }
-        if (newSection == GRID) scrollGridToRow(newIndex / COLS, true);
+        if (newSection == GRID) scrollGridToRow(newIndex / cols, true);
         updateHero(true);
         page.invalidate();
         main.removeCallbacks(saveFocus);
@@ -858,15 +889,15 @@ public class MainActivity extends Activity {
         View first = grid.getChildAt(0);
         int pos = grid.getChildAdapterPosition(first);
         if (pos == RecyclerView.NO_POSITION) return 0;
-        return (pos / COLS) * first.getHeight() + grid.getPaddingTop() - first.getTop();
+        return (pos / cols) * first.getHeight() + grid.getPaddingTop() - first.getTop();
     }
 
     private void scrollGridToRow(int row, boolean smooth) {
-        int rows = (apps.size() + COLS - 1) / COLS;
-        int content = rows * px(ROW_PITCH) + px(GRID_PAD_TOP + GRID_PAD_BOTTOM);
+        int rows = (apps.size() + cols - 1) / cols;
+        int content = rows * px(rowPitch) + px(GRID_PAD_TOP + GRID_PAD_BOTTOM);
         int max = Math.max(0, content - grid.getHeight());
         // Keep one row of context above the focused row.
-        int target = Math.max(0, Math.min(max, (row - 1) * px(ROW_PITCH)));
+        int target = Math.max(0, Math.min(max, (row - 1) * px(rowPitch)));
         gridScrollTarget = target;
         int dy = target - gridScroll();
         if (dy == 0) return;
@@ -1046,7 +1077,7 @@ public class MainActivity extends Activity {
                 if (upIdx > 0) moveFocus(UP, upIdx - 1);
                 break;
             case GRID:
-                if (gridIdx >= COLS) moveFocus(GRID, gridIdx - COLS);
+                if (gridIdx >= cols) moveFocus(GRID, gridIdx - cols);
                 else if (!dock.isEmpty()) moveFocus(DOCK, Math.min(gridIdx, dock.size() - 1));
                 else moveFocus(TOP, topIdx);
                 break;
@@ -1080,12 +1111,12 @@ public class MainActivity extends Activity {
                 else moveFocus(TOP, topIdx); // past the last app: back home
                 break;
             case DOCK:
-                if (n > 0) moveFocus(GRID, Math.min(dockIdx, Math.min(COLS, n) - 1));
+                if (n > 0) moveFocus(GRID, Math.min(dockIdx, Math.min(cols, n) - 1));
                 break;
             case GRID:
-                int next = gridIdx + COLS;
+                int next = gridIdx + cols;
                 if (next < n) moveFocus(GRID, next);
-                else if (gridIdx / COLS < (n - 1) / COLS) moveFocus(GRID, n - 1);
+                else if (gridIdx / cols < (n - 1) / cols) moveFocus(GRID, n - 1);
                 break;
             case MENU:
                 if (menuIdx < menu.getChildCount() - 1) moveFocus(MENU, menuIdx + 1);
@@ -1120,8 +1151,8 @@ public class MainActivity extends Activity {
                 break;
             }
             case GRID: {
-                int col = gridIdx % COLS, i = gridIdx + dir;
-                if (dir < 0 ? col > 0 : col < COLS - 1 && i < apps.size()) moveFocus(GRID, i);
+                int col = gridIdx % cols, i = gridIdx + dir;
+                if (dir < 0 ? col > 0 : col < cols - 1 && i < apps.size()) moveFocus(GRID, i);
                 break;
             }
             default:
@@ -1293,11 +1324,11 @@ public class MainActivity extends Activity {
                 d.remove(e.pkg);
                 DockConfig.save(this, d);
             }));
-        } else if (dock.size() < DOCK_SIZE) {
+        } else if (dock.size() < cols) {
             items.add(new MenuItem("Add to dock", () -> {
                 pendingDockFocus = e.pkg;
                 List<String> d = dockPkgs();
-                d.add(e.pkg);
+                d.add(dock.size(), e.pkg); // last of the shown ones, before any hidden ones
                 DockConfig.save(this, d);
             }));
         } else {
@@ -1436,6 +1467,9 @@ public class MainActivity extends Activity {
             case LauncherSettings.WEEK_START:
                 refreshUsage();
                 break;
+            case LauncherSettings.APPS_PER_ROW:
+                onAppsPerRowChanged();
+                break;
             default:
                 break;
         }
@@ -1475,10 +1509,11 @@ public class MainActivity extends Activity {
      * The dock as shown. Edits save this, so entries for apps that aren't installed or are
      * disabled (skipped on screen) are dropped instead of silently taking a slot.
      */
+    /** The dock to save: what it shows, then the apps a lower "apps per row" hides (kept). */
     private List<String> dockPkgs() {
         List<String> d = new ArrayList<>();
         for (AppEntry a : dock) d.add(a.pkg);
-        return d;
+        return DockConfig.keepHidden(d, savedDock, shownDock, installedPkgs);
     }
 
     private void startMove() {
@@ -1836,6 +1871,27 @@ public class MainActivity extends Activity {
         }
     }
 
+    /** A grid cell at the current tile size (item_tile.xml holds the 5-per-row size). */
+    private void sizeHolder(Holder h) {
+        ViewGroup.LayoutParams root = h.itemView.getLayoutParams();
+        if (root.height != px(rowPitch)) {
+            root.height = px(rowPitch);
+            h.itemView.setLayoutParams(root);
+        }
+        FrameLayout.LayoutParams t = (FrameLayout.LayoutParams) h.tile.getLayoutParams();
+        if (t.width != px(tileW) || t.height != px(tileH)) {
+            t.width = px(tileW);
+            t.height = px(tileH);
+            h.tile.setLayoutParams(t);
+        }
+        FrameLayout.LayoutParams n = (FrameLayout.LayoutParams) h.name.getLayoutParams();
+        if (n.width != px(colW - 2) || n.topMargin != px(tileH + LABEL_GAP)) {
+            n.width = px(colW - 2);
+            n.topMargin = px(tileH + LABEL_GAP);
+            h.name.setLayoutParams(n);
+        }
+    }
+
     private final class GridAdapter extends RecyclerView.Adapter<Holder> {
         @NonNull
         @Override
@@ -1857,6 +1913,7 @@ public class MainActivity extends Activity {
         @Override
         public void onBindViewHolder(@NonNull Holder h, int position) {
             AppEntry e = apps.get(position);
+            sizeHolder(h);
             h.tile.setImageBitmap(e.tile);
             h.name.setText(e.label);
             boolean on = section == GRID && position == gridIdx;

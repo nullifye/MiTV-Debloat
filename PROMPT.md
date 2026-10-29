@@ -20,7 +20,7 @@ I want to debloat my Android TV and replace its home screen with a minimal, fast
 
 Before you start, ask me (one checklist, not one question at a time):
 - Which installed apps I actually use, so you know what must never be touched. List the third-party and notable system apps you find and let me tick them.
-- Which apps go in the dock, left to right (up to 5).
+- Which apps go in the dock, left to right (one row: 5 by default, 6 or 7 in Settings).
 - Whether to keep: Google Assistant / voice search, Chromecast, screen mirroring (Miracast/MiPlay), manufacturer system updates, the manufacturer's own home/content app.
 - Which optional launcher features I want: phone remote, Now Playing card, system card, most-used card, prayer times (and which zone), azan at prayer times (and the audio file to use), notifications bell, running-apps screen, built-in wallpapers, ad-blocking Private DNS.
 
@@ -63,7 +63,7 @@ Launcher
   - Top bar: big clock with the date beside it; round icon buttons for the **bell** (notifications), **Inputs** (dropdown: HDMI 1–3, AV, Live TV, via the TV input framework / `TvContract`), **Wi-Fi** (state by colour, opens Wi-Fi settings) and **Settings** (the launcher's own settings page).
   - Cards on the left under the clock, for whichever optional features I picked.
   - Dock near the bottom: the focused app's name large above it, with a soft glow in a vivid colour sampled from its banner. The first row of the app grid peeks under the dock, faded.
-  - Down from the dock slides up to all other apps (5 per row), with a fade at the top edge as rows scroll under it.
+  - Down from the dock slides up to all other apps (the same number per row as the dock: 5, or 6 or 7 in Settings; the tiles scale so a row always spans the same width), with a fade at the top edge as rows scroll under it.
   - Up from the top bar slides a screen down from above (the running-apps screen, if I picked it).
 - Keep proportions on any TV: design for 960 × 540 dp and, in the activity's `attachBaseContext` (and the overlay service's), override the density to `160 × min(widthPx/960, heightPx/540)` so every dp and sp scales with the screen.
 - Focus: don't rely on Android's focus search. Drive it from `dispatchKeyEvent` with a small state machine (section + index), so every key has exactly one outcome. Up/Down move exactly one row; Up from the dock goes to the top bar; row and bar ends don't wrap; Back returns to the dock; Home while home jumps to the dock. Android pauses the activity before delivering the Home intent, so detect "already home" as "not stopped since the last resume", not by checking whether it's resumed. Remember the last focused tile in SharedPreferences, so it survives the TV killing the launcher.

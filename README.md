@@ -11,7 +11,7 @@ A fast, minimal home screen for **Android TV and Google TV** (Android 8.0 or new
   </tr>
   <tr>
     <td width="50%"><img src="docs/launcher-old.jpg" width="100%" alt="Stock Android TV home screen with Favorite Apps, Play Next and AirConsole rows"></td>
-    <td width="50%"><img src="docs/home.jpg" width="100%" alt="New launcher over the Stargazer wallpaper: clock, Hijri date, prayer times, most used apps, system card, Now Playing and a five-app dock"></td>
+    <td width="50%"><img src="docs/home.jpg" width="100%" alt="New launcher over the Stargazer wallpaper: clock, Hijri date, prayer times, most used apps, system card, Now Playing and an app dock"></td>
   </tr>
   <tr>
     <td valign="top">Rows of recommendations and sponsored content, with your apps squeezed into one line.</td>
@@ -33,8 +33,8 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
     <td width="50%"><img src="docs/app-grid.jpg" width="100%" alt="All apps grid"></td>
   </tr>
   <tr>
-    <td valign="top"><b>Home</b>: big clock with the date and Hijri date, today's prayer times with a countdown, your most used apps this week, a system card (CPU, RAM, storage, network, USB debugging), Now Playing with cover art and controls, and a five-app dock you arrange yourself.</td>
-    <td valign="top"><b>All apps</b> (Down from the dock): five per row, most used first (all time), with a glass focus highlight that springs from tile to tile. Hold OK on any app to add it to the dock.</td>
+    <td valign="top"><b>Home</b>: big clock with the date and Hijri date, today's prayer times with a countdown, your most used apps this week, a system card (CPU, RAM, storage, network, USB debugging), Now Playing with cover art and controls, and an app dock you arrange yourself.</td>
+    <td valign="top"><b>All apps</b> (Down from the dock): 5 per row (6 or 7 in Settings, the dock follows), most used first (all time), with a glass focus highlight that springs from tile to tile. Hold OK on any app to add it to the dock.</td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/running-apps.jpg" width="100%" alt="Running apps screen"></td>
@@ -42,7 +42,7 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
   </tr>
   <tr>
     <td valign="top"><b>Running apps</b> (Up from the top bar): what's running, how much memory each app uses and what it's doing. OK force-closes; hold OK to hide an app from the list.</td>
-    <td valign="top"><b>Settings</b> (the gear): prayer zone (all 60 JAKIM zones), azan and prayer reminders, which cards show, 12/24-hour clock, wallpaper, the Most used week, what the bell tells you, the phone remote, and more. Changes apply straight away.</td>
+    <td valign="top"><b>Settings</b> (the gear): prayer zone (all 60 JAKIM zones), azan and prayer reminders, which cards show, 12/24-hour clock, wallpaper, the Most used week, apps per row, what the bell tells you, the phone remote, and more. Changes apply straight away.</td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/dock-reorder.jpg" width="100%" alt="Hold OK on a dock app: Move, Remove from dock, Open"></td>
@@ -98,7 +98,7 @@ You need an Android TV or Google TV running Android 8.0 or newer, and a computer
 
 | On the remote | Does |
 |---|---|
-| Left / Right on the dock | Move between your five dock apps |
+| Left / Right on the dock | Move between your dock apps |
 | Down from the dock | All apps, most used first |
 | Up from the dock | Now Playing controls (when something plays), then the top bar |
 | Up from the top bar | Running apps: OK force-closes, hold OK for options |

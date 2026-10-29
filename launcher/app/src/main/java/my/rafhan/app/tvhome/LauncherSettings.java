@@ -29,7 +29,7 @@ final class LauncherSettings {
             PRAYER_REMINDER = "prayer_reminder",
             STATUS_BAR = "status_bar", STATUS_LEFT = "status_left", STATUS_CENTER = "status_center",
             STATUS_RIGHT = "status_right", STATUS_POS = "status_position", STATUS_SIZE = "status_size",
-            STATUS_BG = "status_background";
+            STATUS_BG = "status_background", APPS_PER_ROW = "apps_per_row";
 
     /** What a status-bar slot shows. */
     static final int SLOT_NONE = 0, SLOT_SPEED = 1, SLOT_UPTIME = 2, SLOT_CLOCK = 3, SLOT_ELAPSED = 4;
@@ -86,7 +86,9 @@ final class LauncherSettings {
     }
 
     static int choice(Context ctx, String key) {
-        return prefs(ctx).getInt(key, defaultChoice(key));
+        int v = prefs(ctx).getInt(key, defaultChoice(key));
+        // Apps per row once also offered 4: a saved 4 reads as 5, the smallest now.
+        return APPS_PER_ROW.equals(key) ? Math.max(5, Math.min(7, v)) : v;
     }
 
     static void setChoice(Context ctx, String key, int value) {
@@ -104,6 +106,7 @@ final class LauncherSettings {
             case STATUS_CENTER: return SLOT_UPTIME;
             case STATUS_RIGHT: return SLOT_CLOCK;
             case STATUS_SIZE: return 12;  // sp: Small
+            case APPS_PER_ROW: return 5;  // the dock and each app-list row
             default: return 0;
         }
     }

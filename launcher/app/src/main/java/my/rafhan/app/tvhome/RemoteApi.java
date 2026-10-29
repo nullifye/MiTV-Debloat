@@ -24,9 +24,11 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * The phone remote's API: the routes below {@code /} and the actions behind them (keys, apps,
@@ -428,7 +430,7 @@ final class RemoteApi {
             List<AppEntry> ordered = new ArrayList<>();
             for (String pkg : DockConfig.load(ctx)) {
                 AppEntry e = byPkg.get(pkg);
-                if (e != null && !ordered.contains(e) && ordered.size() < DockConfig.MAX) ordered.add(e);
+                if (e != null && !ordered.contains(e) && ordered.size() < DockConfig.size(ctx)) ordered.add(e);
             }
             appCacheDock = ordered.size();
             List<AppEntry> rest = new ArrayList<>(all);
@@ -447,12 +449,16 @@ final class RemoteApi {
         return null;
     }
 
-    /** {"pkgs":[...]}: the new dock, left to right (installed launchable apps only, at most 5). */
+    /**
+     * {"pkgs":[...]}: the new dock, left to right (installed launchable apps only, at most "apps
+     * per row"). Apps a lower "apps per row" hides are kept after them, as on the TV.
+     */
     private Object[] saveDock(byte[] body) {
         try {
             JSONArray arr = new JSONObject(new String(body, StandardCharsets.UTF_8)).getJSONArray("pkgs");
-            if (arr.length() > DockConfig.MAX) return new Object[] {400, Http.err("The dock holds up to " + DockConfig.MAX + " apps.")};
-            List<String> known = new ArrayList<>();
+            int max = DockConfig.size(ctx);
+            if (arr.length() > max) return new Object[] {400, Http.err("The dock holds up to " + max + " apps.")};
+            Set<String> known = new HashSet<>();
             for (AppEntry e : AppRepository.load(ctx)) known.add(e.pkg);
             List<String> pkgs = new ArrayList<>();
             for (int i = 0; i < arr.length(); i++) {
@@ -460,6 +466,9 @@ final class RemoteApi {
                 if (!known.contains(p)) return new Object[] {400, Http.err("Unknown app: " + p)};
                 if (!pkgs.contains(p)) pkgs.add(p);
             }
+            List<String> saved = DockConfig.load(ctx), shownBefore = new ArrayList<>();
+            for (String p : saved) if (known.contains(p) && shownBefore.size() < max && !shownBefore.contains(p)) shownBefore.add(p);
+            pkgs = DockConfig.keepHidden(pkgs, saved, shownBefore, known);
             if (!DockConfig.save(ctx, pkgs)) return new Object[] {500, Http.err("Couldn't save the dock.")};
             synchronized (this) {
                 appCache = null;
@@ -481,7 +490,7 @@ final class RemoteApi {
             AppEntry e = list.get(i);
             arr.put(new Http.JSONObjectBuilder().put("pkg", e.pkg).put("label", e.label).put("dock", i < dock).build());
         }
-        return new Http.JSONObjectBuilder().put("ok", true).put("apps", arr).build();
+        return new Http.JSONObjectBuilder().put("ok", true).put("apps", arr).put("dockMax", DockConfig.size(ctx)).build();
     }
 
     private byte[] banner(String pkg) {
