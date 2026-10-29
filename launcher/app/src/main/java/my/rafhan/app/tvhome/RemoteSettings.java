@@ -100,7 +100,7 @@ final class RemoteSettings {
                         StatusOverlay.SLOT_VALUES, StatusOverlay.SLOT_NAMES),
                 choice(LauncherSettings.STATUS_POS, "Position", "Top or bottom edge of the screen",
                         StatusOverlay.POS_VALUES, StatusOverlay.POS_NAMES),
-                choice(LauncherSettings.STATUS_SIZE, "Text size", "Small 12, Medium 14, Large 18",
+                choice(LauncherSettings.STATUS_SIZE, "Text size", "Tiny 10, Small 12, Medium 14, Large 18",
                         StatusOverlay.SIZE_VALUES, StatusOverlay.SIZE_NAMES),
                 toggle(LauncherSettings.STATUS_BG, "Background", "A dark see-through box behind the text")));
         return new JSONObject().put("ok", true).put("categories", cats);

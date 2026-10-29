@@ -64,7 +64,7 @@ Device and memory alerts, and a new TV Home version, also slide in a short banne
 A thin bar over every other app: **network speed** (`↓ 1.2 Mb  ↑ 34 Kb`), **uptime** (`23h6m`, or `2d1h55m`), a **clock** with seconds (`15:05:36`, always 24-hour) and **elapsed time** since you left the home screen (`04:07`, or `1:04:07` past an hour; it starts again when you go back home or the screen turns off). Turn it on in **Settings → Info overlay → Show over apps**; it's off by default.
 
 - **Never on the home screen** (which has its own clock and System card), and not while the screen is off. It comes back as soon as an app is in front.
-- **Options:** what the left, centre and right show (any of the four, or nothing), top or bottom of the screen, text size (Small 12 / Medium 14 / Large 18), and a dark see-through background. The phone remote's Settings tab has the same options.
+- **Options:** what the left, centre and right show (any of the four, or nothing), top or bottom of the screen, text size (Tiny 10 / Small 12 / Medium 14 / Large 18), and a dark see-through background. The phone remote's Settings tab has the same options.
 - **Speed** is all traffic in and out of the TV (`TrafficStats`), in decimal bits per second, updated every 2 s.
 - **Cost:** it ticks once a second only while it's showing. On the home screen, with the screen off or switched off, nothing runs.
 - It can't be focused or touched, so it never takes a key press from the app underneath.

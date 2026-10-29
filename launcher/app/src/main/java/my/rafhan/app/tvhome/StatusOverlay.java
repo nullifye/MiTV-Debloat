@@ -45,8 +45,8 @@ final class StatusOverlay implements LauncherSettings.Listener {
     static final String[] SLOT_NAMES = {"Network speed", "Uptime", "Clock", "Elapsed time", "Nothing"};
     static final int[] POS_VALUES = {0, 1};
     static final String[] POS_NAMES = {"Top", "Bottom"};
-    static final int[] SIZE_VALUES = {12, 14, 18};
-    static final String[] SIZE_NAMES = {"Small", "Medium", "Large"};
+    static final int[] SIZE_VALUES = {10, 12, 14, 18};
+    static final String[] SIZE_NAMES = {"Tiny", "Small", "Medium", "Large"};
 
     private final Context ctx;
     private final WindowManager wm;
