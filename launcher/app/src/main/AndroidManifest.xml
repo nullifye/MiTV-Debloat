@@ -43,6 +43,11 @@
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
+    <!-- Bell: apps with an update waiting, from the Play Store's log lines (PlayUpdates). A
+         development permission, granted over ADB like DUMP; only used below Android 13. -->
+    <uses-permission
+        android:name="android.permission.READ_LOGS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Now Playing card without USB debugging: read `dumpsys media_session`. A development
          permission, granted over ADB by build-and-install.sh. -->
     <uses-permission

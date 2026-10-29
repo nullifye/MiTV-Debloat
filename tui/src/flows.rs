@@ -143,6 +143,14 @@ fn grants(sdk: u32) -> Vec<(&'static str, Vec<&'static str>)> {
             vec!["pm", "grant", PKG, "android.permission.BLUETOOTH_CONNECT"],
         ));
     }
+    // Bell: apps with an update waiting, from the Play Store's log. Android 13+ asks on screen
+    // whenever an app reads the log, so the launcher only uses it below 13.
+    if sdk < 33 {
+        g.push((
+            "Read the Play Store's update list (bell)",
+            vec!["pm", "grant", PKG, "android.permission.READ_LOGS"],
+        ));
+    }
     g
 }
 
@@ -1128,6 +1136,10 @@ mod tests {
         )));
         assert!(l.contains("set-home-activity my.rafhan.app.tvhome/.MainActivity"));
         assert!(l.contains("appops set my.rafhan.app.tvhome REQUEST_INSTALL_PACKAGES allow"));
+        assert!(
+            l.contains("pm grant my.rafhan.app.tvhome android.permission.READ_LOGS"),
+            "SDK 29: the bell reads Play's log"
+        );
         assert!(!l.contains("disable-user"), "no handover unless asked");
         assert!(p.warnings.is_empty());
         // Runs to the end, records the stock launcher and accessibility state.

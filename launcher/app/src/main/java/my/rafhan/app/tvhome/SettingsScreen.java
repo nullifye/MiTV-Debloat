@@ -413,7 +413,7 @@ final class SettingsScreen {
 
     private void alertRows(List<Row> out) {
         out.add(toggle(LauncherSettings.ALERT_UPDATE, "TV Home updates", "Checked every 6 hours"));
-        out.add(toggle(LauncherSettings.ALERT_PLAY, "Play Store updates", "Checked every 6 hours"));
+        out.add(toggle(LauncherSettings.ALERT_PLAY, "Play Store updates", "Apps with an update waiting, checked every hour"));
         out.add(toggle(LauncherSettings.ALERT_HDMI, "New HDMI devices", "A device that appears over HDMI-CEC"));
         out.add(toggle(LauncherSettings.ALERT_BT, "Bluetooth devices", "Connecting or disconnecting (not the TV remote)"));
         out.add(toggle(LauncherSettings.NET_BANNER, "Connection status",

@@ -83,7 +83,7 @@ final class RemoteSettings {
                         .put("value", new JSONArray(LauncherSettings.usageExcludedPresent(ctx)))));
         cats.put(category("Notifications", "What the bell tells you",
                 toggle(LauncherSettings.ALERT_UPDATE, "TV Home updates", "Checked every 6 hours"),
-                toggle(LauncherSettings.ALERT_PLAY, "Play Store updates", "Checked every 6 hours"),
+                toggle(LauncherSettings.ALERT_PLAY, "Play Store updates", "Apps with an update waiting, checked every hour"),
                 toggle(LauncherSettings.ALERT_HDMI, "New HDMI devices", "A device that appears over HDMI-CEC"),
                 toggle(LauncherSettings.ALERT_BT, "Bluetooth devices", "Connecting or disconnecting (not the TV remote)"),
                 toggle(LauncherSettings.NET_BANNER, "Connection status",

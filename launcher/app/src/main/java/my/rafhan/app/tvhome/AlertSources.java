@@ -8,9 +8,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.media.tv.TvContract;
 import android.media.tv.TvInputInfo;
 import android.media.tv.TvInputManager;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.PowerManager;
@@ -32,10 +34,12 @@ import java.util.regex.Pattern;
  * on screen:
  *  - TV Home updates: a newer release on GitHub (UpdateCheck), at start and every 6 h; opening it
  *    downloads and installs it (UpdateActivity). A banner shows once per version;
- *  - Play Store updates: the Play Store's own "updates available" notifications, read from
- *    `dumpsys notification --noredact` (this TV refuses notification-listener access; the
- *    notification service needs DUMP and PACKAGE_USAGE_STATS, both granted by
- *    build-and-install.sh), at start and every 6 h;
+ *  - Play Store updates: one alert per app with an update waiting, from the Play Store's log
+ *    (PlayUpdates: it rarely posts a notification on a TV), at start, every hour and whenever an
+ *    app is updated; when the log can't be read, the Play Store's own "updates available"
+ *    notification, read from `dumpsys notification --noredact` (this TV refuses notification-
+ *    listener access; the notification service needs DUMP and PACKAGE_USAGE_STATS, both granted
+ *    by build-and-install.sh);
  *  - new HDMI-CEC devices: TvInputManager child inputs under an HDMI port;
  *  - Bluetooth devices connecting / disconnecting (the TV remote and quick reconnects ignored);
  *  - memory use above the level set in Settings (85 % by default; re-arms 5 points lower).
@@ -44,7 +48,7 @@ import java.util.regex.Pattern;
  */
 final class AlertSources {
     private static final long UPDATE_EVERY_MS = 6 * 60 * 60_000L, UPDATE_FIRST_MS = 60_000;
-    private static final long PLAY_EVERY_MS = 6 * 60 * 60_000L, MEMORY_EVERY_MS = 60_000, BT_SETTLE_MS = 2 * 60_000;
+    private static final long PLAY_EVERY_MS = 60 * 60_000L, PLAY_AFTER_INSTALL_MS = 5_000, MEMORY_EVERY_MS = 60_000, BT_SETTLE_MS = 2 * 60_000;
     private static final float MEMORY_REARM_GAP = 0.05f; // re-arm 5 points under the level
     private static final Pattern REMOTE = Pattern.compile("(?i)\\b(rc|remote)\\b");
 
@@ -93,6 +97,12 @@ final class AlertSources {
         IntentFilter f = new IntentFilter(BluetoothDevice.ACTION_ACL_CONNECTED);
         f.addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED);
         ctx.registerReceiver(btReceiver, f);
+        // An app updated, removed, disabled: its Play Store alert may be done.
+        IntentFilter pf = new IntentFilter(Intent.ACTION_PACKAGE_REPLACED);
+        pf.addAction(Intent.ACTION_PACKAGE_REMOVED);
+        pf.addAction(Intent.ACTION_PACKAGE_CHANGED);
+        pf.addDataScheme("package");
+        ctx.registerReceiver(packageReceiver, pf);
     }
 
     void stop() {
@@ -101,6 +111,7 @@ final class AlertSources {
         if (tim != null) tim.unregisterCallback(tvCallback);
         try {
             ctx.unregisterReceiver(btReceiver);
+            ctx.unregisterReceiver(packageReceiver);
         } catch (RuntimeException ignored) {
         }
     }
@@ -144,12 +155,45 @@ final class AlertSources {
             // Switched off in Settings: clear any shown update alerts and stop reading.
             boolean on = LauncherSettings.flag(ctx, LauncherSettings.ALERT_PLAY);
             Thread t = new Thread(() -> alerts.sync(Alerts.PLAY,
-                    on ? readPlayUpdates() : new ArrayList<>()), "alerts-play");
+                    on ? readPlay() : new ArrayList<>()), "alerts-play");
             t.setDaemon(true);
             t.start();
             main.postDelayed(this, PLAY_EVERY_MS);
         }
     };
+
+    private final BroadcastReceiver packageReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context c, Intent intent) {
+            // A few seconds later, once the burst of broadcasts from one install has passed.
+            main.removeCallbacks(playCheck);
+            main.postDelayed(playCheck, PLAY_AFTER_INSTALL_MS);
+        }
+    };
+
+    /** One alert per app waiting for an update; the Play Store's own notification otherwise. */
+    private List<Alerts.Alert> readPlay() {
+        List<Alerts.Alert> apps = new ArrayList<>();
+        for (Map.Entry<String, PlayUpdates.Pending> e : PlayUpdates.refresh(ctx).entrySet()) {
+            apps.add(appUpdateAlert(e.getKey(), e.getValue().found));
+        }
+        return apps.isEmpty() ? readPlayUpdates() : apps;
+    }
+
+    /** "Netflix · Update on the Play Store": OK opens its Play Store page. */
+    private Alerts.Alert appUpdateAlert(String pkg, long found) {
+        PackageManager pm = ctx.getPackageManager();
+        String label;
+        try {
+            label = String.valueOf(pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)));
+        } catch (PackageManager.NameNotFoundException e) {
+            label = pkg;
+        }
+        Intent open = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + pkg))
+                .setPackage("com.android.vending");
+        return new Alerts.Alert("playapp:" + pkg + "@" + found, Alerts.PLAY, label, "Update on the Play Store",
+                found, open);
+    }
 
     private List<Alerts.Alert> readPlayUpdates() {
         List<Alerts.Alert> out = new ArrayList<>();

@@ -128,6 +128,10 @@ opt pm grant $PKG android.permission.DUMP
 # Bell: reading the Play Store's update notifications from `dumpsys notification` also needs the
 # real PACKAGE_USAGE_STATS permission (the usage-access appop above isn't enough for that service).
 opt pm grant $PKG android.permission.PACKAGE_USAGE_STATS
+# Bell: apps with an update waiting, read from the Play Store's log lines (it rarely posts a
+# notification on a TV). Android 13+ asks on screen whenever an app reads the log, so the
+# launcher doesn't use it there.
+[ "$SDK" -lt 33 ] && opt pm grant $PKG android.permission.READ_LOGS
 
 # Several apps can claim HOME (stock launcher, factory test, setup leftovers): pick ours explicitly.
 A shell cmd package set-home-activity $PKG/.MainActivity
