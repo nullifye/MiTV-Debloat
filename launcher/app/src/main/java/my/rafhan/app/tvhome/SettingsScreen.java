@@ -110,6 +110,7 @@ final class SettingsScreen {
     private String pickerTitle;
     private int pickerFrom;
     private boolean confirmForget;
+    private String confirmPhone; // Phone remote: the phone whose Forget is waiting for a second OK
 
     SettingsScreen(Context ctx, FrameLayout root, Executor worker, Host host) {
         this.ctx = ctx;
@@ -225,6 +226,7 @@ final class SettingsScreen {
         row = 0;
         picker = null;
         confirmForget = false;
+        confirmPhone = null;
         render();
     }
 
@@ -251,6 +253,7 @@ final class SettingsScreen {
 
     private void move(int d) {
         confirmForget = false;
+        confirmPhone = null;
         if (col == 0) {
             int c = cat + d;
             if (c < 0 || c >= CATS.length) return;
@@ -296,6 +299,7 @@ final class SettingsScreen {
     /** Back: picker → rows → categories → (true) close Settings. */
     boolean back() {
         confirmForget = false;
+        confirmPhone = null;
         if (picker != null) {
             closePicker();
             return false;
@@ -511,9 +515,38 @@ final class SettingsScreen {
                 return;
             }
             confirmForget = false;
+        confirmPhone = null;
             RemoteServer.forgetAll(ctx);
         };
         out.add(f);
+        // Each paired phone, newest first: its name (typed when pairing, or Rename on the phone)
+        // and when it was last used. OK twice forgets that one; it has to pair again.
+        try {
+            org.json.JSONArray phones = new RemoteDevices(ctx).json(null);
+            for (int i = 0; i < phones.length(); i++) {
+                org.json.JSONObject d = phones.getJSONObject(i);
+                String id = d.optString("id"), name = d.optString("name", "Phone");
+                boolean asking = id.equals(confirmPhone);
+                Row r = new Row(ACTION, asking ? "Press OK again to forget " + name : name);
+                r.id = id;
+                r.value = () -> asking ? "Confirm" : "Forget";
+                r.action = () -> {
+                    if (!id.equals(confirmPhone)) {
+                        confirmPhone = id;
+                        return;
+                    }
+                    confirmPhone = null;
+                    new RemoteDevices(ctx).remove(id);
+                };
+                long seen = d.optLong("lastSeen"), now = System.currentTimeMillis();
+                r.sub = seen <= 0 ? "Paired"
+                        : now - seen < 60_000 ? "Last used just now"
+                        : "Last used " + android.text.format.DateUtils.getRelativeTimeSpanString(
+                                seen, now, android.text.format.DateUtils.MINUTE_IN_MILLIS);
+                out.add(r);
+            }
+        } catch (org.json.JSONException ignored) {
+        }
     }
 
     private void hiddenRows(List<Row> out) {
@@ -854,7 +887,8 @@ final class SettingsScreen {
             }
             case ACTION:
                 if (!TextUtils.isEmpty(value)) {
-                    TextView t = text(14, 500, confirmForget ? AMBER : DIM);
+                    boolean asking = (r.id == null && confirmForget) || (r.id != null && r.id.equals(confirmPhone));
+                    TextView t = text(14, 500, asking ? AMBER : DIM);
                     t.setText(value);
                     v.addView(t, margin(wrap()));
                 }

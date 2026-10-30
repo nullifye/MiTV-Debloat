@@ -124,7 +124,7 @@ The gear at the end of the top bar opens the launcher's Settings: categories on 
 | Most used | Most used card on/off, week starts on (Monday / Sunday), leave out (app picker) |
 | Notifications | TV Home updates, Play Store updates, new HDMI devices, Bluetooth, connection status, low memory (each on/off), low-memory level 80/85/90 % |
 | Info overlay | Show over apps on/off (off by default), what the left, centre and right show (network speed / uptime / clock / elapsed time / nothing), position (top / bottom), text size (small / medium / large), background on/off |
-| Phone remote | Remote on/off (the banner and bell keep working when it's off), its address, forget all paired phones (press OK twice) |
+| Phone remote | Remote on/off (the banner and bell keep working when it's off), its address, forget all paired phones (press OK twice), and each paired phone with when it was last used and its own Forget (OK twice) |
 | Running apps | Apps hidden from the running-apps screen; OK shows one again |
 | About | Version, install time, APK size, TV settings |
 
@@ -185,8 +185,10 @@ Open **http://\<TV IP\>:8486** on your phone, on the same Wi-Fi (Settings → Ph
 
 **Pairing (once per phone):**
 1. Tap **Show PIN on TV**. A 4-digit PIN appears in the middle of the TV for 60 seconds.
-2. Type it on the phone. The phone keeps a token.
+2. Type it on the phone, and optionally a name for the phone. The phone keeps a token.
 3. After 5 wrong tries the PIN is voided and you ask for a new one.
+
+**Phone names:** the list of paired phones (Settings tab) uses the name typed when pairing. Without one, it guesses from the browser, but Chrome no longer tells plain-HTTP pages the phone's model: its browser description reads "Android 10; K" on every phone, so those show as "Android phone". **Rename** next to "(this phone)" in that list names it.
 
 **Unpairing:** the broken-link button next to the TV's name.
 

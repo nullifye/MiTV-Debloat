@@ -36,6 +36,9 @@
   #pin { font: inherit; font-size: 44px; font-weight: 300; letter-spacing: .4em; text-align: center; width: 100%;
     color: var(--text); background: var(--glass); border: 1px solid var(--edge); border-radius: 22px; padding: 14px 0 14px .4em; outline: none; }
   #pin:focus { border-color: rgba(255,255,255,.35); }
+  #phoneName { font: inherit; font-size: 16px; text-align: center; width: 100%; color: var(--text); background: var(--glass);
+    border: 1px solid var(--edge); border-radius: 16px; padding: 12px; outline: none; }
+  #phoneName:focus { border-color: rgba(255,255,255,.35); }
 
   /* main */
   #main { flex: 1; display: flex; flex-direction: column; min-height: 0; }
@@ -266,6 +269,8 @@
     <div class="sub">Pair this phone once. A 6-digit PIN will appear on the TV.</div>
   </div>
   <button id="showPin">Show PIN on TV</button>
+  <!-- Chrome no longer tells pages the phone's model over plain HTTP, so ask for a name. -->
+  <input id="phoneName" maxlength="40" autocomplete="off" placeholder="This phone's name (optional)">
   <input id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="······">
   <button id="confirm">Pair</button>
   <div id="pairStatus" class="status"></div>
@@ -413,10 +418,22 @@
 const $ = (id) => document.getElementById(id);
 let token = localStorage.getItem("tvtoken") || "";
 
+// Chrome opens a spare connection when the page loads; the TV closes connections that stay
+// silent for 10 s, and a request sent down that closed one fails before reaching the TV (the
+// "first tap" error). A network failure is retried once on a fresh connection; it never reached
+// the TV, so nothing happens twice.
+async function fetchOnce(path, opts) {
+  try { return await fetch(path, opts); }
+  catch (e) {
+    try { return await fetch(path, opts); }
+    catch (e2) { throw new Error("Can't reach the TV. Is this phone on the same Wi-Fi?"); }
+  }
+}
+
 async function api(path, opts = {}) {
   const headers = Object.assign({}, opts.headers || {});
   if (token) headers["X-Token"] = token;
-  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  const res = await fetchOnce(path, Object.assign({}, opts, { headers }));
   let body = {};
   try { body = await res.json(); } catch (e) {}
   if (res.status === 401) { token = ""; localStorage.removeItem("tvtoken"); show("pair"); throw new Error("Not paired"); }
@@ -445,11 +462,27 @@ $("showPin").onclick = async () => {
 };
 $("confirm").onclick = async () => {
   try {
-    const r = await post("/api/pair/confirm", { pin: $("pin").value.trim() });
+    const r = await post("/api/pair/confirm", { pin: $("pin").value.trim(), name: $("phoneName").value.trim() });
     token = r.token; localStorage.setItem("tvtoken", token); $("pin").value = ""; await startSession(); show("main");
   } catch (e) { $("pairStatus").textContent = e.message; }
 };
 $("pin").addEventListener("input", () => { if ($("pin").value.length === 6) $("confirm").click(); });
+// A friendly starting name for this phone in the TV's list ("Calm Otter"): kept until it pairs,
+// so reloading the page doesn't change it. Typing over it is fine; an empty box lets the TV guess.
+(() => {
+  const ADJ = ["Blue", "Calm", "Swift", "Bright", "Quiet", "Lucky", "Brave", "Sunny", "Cosy", "Happy",
+    "Silver", "Golden", "Gentle", "Clever", "Merry", "Bold"];
+  const ANIMAL = ["Otter", "Falcon", "Panda", "Tiger", "Koala", "Dolphin", "Fox", "Owl", "Kitten",
+    "Turtle", "Rabbit", "Eagle", "Penguin", "Deer", "Robin", "Lynx"];
+  const pick = (list) => list[Math.floor(Math.random() * list.length)];
+  let name = "";
+  try { name = localStorage.getItem("phoneName") || ""; } catch (e) {}
+  if (!name) {
+    name = pick(ADJ) + " " + pick(ANIMAL);
+    try { localStorage.setItem("phoneName", name); } catch (e) {}
+  }
+  $("phoneName").value = name;
+})();
 $("unpair").onclick = async (ev) => {
   ev.preventDefault();
   if (!confirm("Unpair this phone from the TV?")) return;
@@ -598,7 +631,7 @@ async function takeShot() {
   $("shotMsg").textContent = "Taking a screenshot of the TV…";
   $("shotSave").disabled = true;
   try {
-    const res = await fetch("/api/screenshot", { headers: { "X-Token": token } });
+    const res = await fetchOnce("/api/screenshot", { headers: { "X-Token": token } });
     if (res.status === 401) { token = ""; localStorage.removeItem("tvtoken"); $("shot").classList.add("hidden"); show("pair"); return; }
     if (!(res.headers.get("Content-Type") || "").startsWith("image/")) {
       let b = {}; try { b = await res.json(); } catch (e) {}
@@ -1132,6 +1165,20 @@ function renderDevices() {
     const t = document.createElement("div"); t.className = "t";
     const seen = ago(d.lastSeen);
     t.innerHTML = `<div>${esc(d.name)}${d.current ? " (this phone)" : ""}</div><span>Last used ${seen === "now" ? "just now" : seen + " ago"}</span>`;
+    if (d.current) {
+      // Name this phone (Chrome hides the model, so phones paired before showed up as "K").
+      const rn = document.createElement("button"); rn.textContent = "Rename";
+      rn.onclick = async () => {
+        buzz();
+        const name = prompt("Name for this phone", d.name);
+        if (name === null || !name.trim()) return;
+        try {
+          await post("/api/devices/rename", { name: name.trim() });
+          devicesData = (await api("/api/devices")).devices; renderDevices();
+        } catch (e) { flash(e.message); }
+      };
+      row.appendChild(rn);
+    }
     const b = document.createElement("button"); b.textContent = "Forget";
     b.onclick = async () => {
       buzz();
@@ -1141,7 +1188,8 @@ function renderDevices() {
         else { devicesData = (await api("/api/devices")).devices; renderDevices(); }
       } catch (e) { flash(e.message); }
     };
-    row.append(t, b);
+    row.prepend(t);
+    row.appendChild(b);
     box.appendChild(row);
   });
 }

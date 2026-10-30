@@ -209,17 +209,50 @@ final class RemoteDevices {
         return sb.toString();
     }
 
-    /** A short, human name for the list, e.g. "Pixel 6" from a browser User-Agent. */
+    /**
+     * A short, human name for the list: {@code given}, the name typed on the phone (pairing, or
+     * Rename), else one from the User-Agent. Chrome no longer puts the phone's model there: it
+     * sends "(Linux; Android 10; K)" for every phone, so "K" alone says nothing and reads "Android
+     * phone". (The real model is only told to HTTPS pages; the remote is plain HTTP.)
+     */
+    static String name(String userAgent, String given) {
+        String m = given == null ? "" : given.trim();
+        if (!m.isEmpty() && !m.equals("K") && m.length() <= 40 && m.chars().noneMatch(Character::isISOControl)) {
+            return m;
+        }
+        return name(userAgent);
+    }
+
     static String name(String userAgent) {
         if (userAgent == null || userAgent.trim().isEmpty()) return "Phone";
         Matcher m = Pattern.compile("\\(([^)]*)\\)").matcher(userAgent);
         String detail = m.find() ? m.group(1) : userAgent;
+        if (detail.contains("iPhone")) return "iPhone";
+        if (detail.contains("iPad")) return "iPad";
         String[] bits = detail.split(";");
         for (int i = bits.length - 1; i >= 0; i--) {
             String b = bits[i].trim().replaceAll("\\s*Build/.*$", "");
-            if (b.isEmpty() || b.startsWith("wv") || b.startsWith("Android") || b.startsWith("Linux")) continue;
+            if (b.isEmpty() || b.equals("K") || b.startsWith("wv") || b.startsWith("Android") || b.startsWith("Linux")) continue;
             return b.length() > 40 ? b.substring(0, 40) : b;
         }
-        return "Phone";
+        return detail.contains("Android") ? "Android phone" : "Phone";
+    }
+
+    /** Gives the phone that owns {@code token} a new name (Rename on the phone). */
+    synchronized void rename(String token, String name) {
+        if (token == null || token.isEmpty() || name == null) return;
+        String want = hex(sha256(token));
+        JSONArray arr = read();
+        for (int i = 0; i < arr.length(); i++) {
+            JSONObject o = arr.optJSONObject(i);
+            Device d = parse(o);
+            if (d == null || !same(d.hash, want) || name.equals(d.name)) continue;
+            try {
+                o.put("name", name);
+                write(arr);
+            } catch (JSONException ignored) {
+            }
+            return;
+        }
     }
 }

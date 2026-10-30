@@ -339,6 +339,24 @@ final class RemoteApi {
             case "/api/devices":
                 Http.json(out, 200, new Http.JSONObjectBuilder().put("ok", true).put("devices", devices.json(token)).build());
                 return;
+            case "/api/devices/rename":
+                // {"name": "..."}: this phone's name in the list (it can only rename itself).
+                if (Http.post(method, out)) {
+                    String name;
+                    try {
+                        name = new JSONObject(new String(body, StandardCharsets.UTF_8)).optString("name").trim();
+                    } catch (JSONException e) {
+                        Http.json(out, 400, Http.err("Bad request."));
+                        return;
+                    }
+                    if (name.isEmpty()) {
+                        Http.json(out, 400, Http.err("Type a name."));
+                        return;
+                    }
+                    devices.rename(token, RemoteDevices.name(headers.get("user-agent"), name));
+                    Http.json(out, 200, Http.ok());
+                }
+                return;
             case "/api/devices/revoke":
                 if (Http.post(method, out)) {
                     String id;
@@ -384,9 +402,11 @@ final class RemoteApi {
             overlay.hide();
             return new Object[] {429, Http.err("Too many wrong PINs. Try again in " + (wait / 1000) + "s.")};
         }
-        String given;
+        String given, name;
         try {
-            given = new JSONObject(new String(body, StandardCharsets.UTF_8)).optString("pin");
+            JSONObject o = new JSONObject(new String(body, StandardCharsets.UTF_8));
+            given = o.optString("pin");
+            name = o.optString("name"); // typed on the pairing screen, optional
         } catch (JSONException e) {
             return new Object[] {400, Http.err("Bad request.")};
         }
@@ -394,7 +414,7 @@ final class RemoteApi {
             case OK: {
                 overlay.hide();
                 String token = randomToken();
-                devices.add(token, RemoteDevices.name(userAgent));
+                devices.add(token, RemoteDevices.name(userAgent, name));
                 return new Object[] {200, new Http.JSONObjectBuilder().put("ok", true).put("token", token).build()};
             }
             case LOCKED:
