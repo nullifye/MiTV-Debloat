@@ -22,6 +22,24 @@ public class RemoteService extends Service implements LauncherSettings.Listener 
     private Azan azan;
     private SleepTimer sleepTimer;
     private StatusOverlay statusBar;
+    // Cleaners (Xiaomi's TV Manager) delete files in apps' shared folders. The dock and the
+    // remote's disable log live in private storage; their shared copies (for ADB, restore.sh and
+    // the setup app) are written again at start and every hour.
+    private static final long SHARED_COPIES_EVERY_MS = 60 * 60_000L;
+    private final android.os.Handler main = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final Runnable sharedCopies = new Runnable() {
+        @Override
+        public void run() {
+            Context ctx = RemoteService.this;
+            Thread t = new Thread(() -> {
+                AppManager.syncShared(ctx);
+                DockConfig.load(ctx); // writes its shared copy back if it's gone
+            }, "shared-copies");
+            t.setDaemon(true);
+            t.start();
+            main.postDelayed(this, SHARED_COPIES_EVERY_MS);
+        }
+    };
 
     /** Banners and the PIN card over other apps keep the launcher's proportions (UiScale). */
     @Override
@@ -47,6 +65,7 @@ public class RemoteService extends Service implements LauncherSettings.Listener 
         azan.start();
         statusBar = new StatusOverlay(this);
         statusBar.start();
+        main.post(sharedCopies);
     }
 
     private Notification notification() {
@@ -100,6 +119,7 @@ public class RemoteService extends Service implements LauncherSettings.Listener 
 
     @Override
     public void onDestroy() {
+        main.removeCallbacks(sharedCopies);
         LauncherSettings.removeListener(this);
         if (server != null) server.stop();
         if (netBanner != null) netBanner.stop();

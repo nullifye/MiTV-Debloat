@@ -33,18 +33,52 @@ final class AppManager {
 
     private AppManager() {}
 
-    /** The remote's disable log: external storage so restore.sh can read it, internal if absent. */
+    private static final String LOG = "disabled-by-remote.txt";
+
+    /**
+     * The remote's disable log, in private storage: cleaners (Xiaomi's TV Manager) delete files in
+     * apps' shared folders. A copy stays in the shared folder (sharedLog) for restore.sh and the
+     * setup app, which read it over ADB; syncShared() writes it again if it goes missing.
+     */
     private static File log(Context ctx) {
-        File dir = ctx.getExternalFilesDir(null);
-        if (dir == null) dir = ctx.getFilesDir(); // no external storage mounted
-        return new File(dir, "disabled-by-remote.txt");
+        return new File(ctx.getFilesDir(), LOG);
     }
 
-    /** Apps the remote disabled, oldest first. */
+    private static File sharedLog(Context ctx) {
+        File dir = ctx.getExternalFilesDir(null);
+        return dir == null ? null : new File(dir, LOG);
+    }
+
+    /**
+     * Apps the remote disabled and that are still off, oldest first. Undo all changes (restore.sh,
+     * the setup app) turns them back on, and they drop off the list by themselves.
+     */
     static synchronized Set<String> disabled(Context ctx) {
+        Set<String> out = read(log(ctx));
+        if (!log(ctx).isFile()) out.addAll(read(sharedLog(ctx))); // older versions: shared folder only
+        PackageManager pm = ctx.getPackageManager();
+        out.removeIf(p -> {
+            try {
+                int state = pm.getApplicationEnabledSetting(p);
+                return state != PackageManager.COMPONENT_ENABLED_STATE_DISABLED_USER
+                        && state != PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
+            } catch (IllegalArgumentException e) {
+                return true; // uninstalled
+            }
+        });
+        return out;
+    }
+
+    /** Writes the log and its shared copy again (the copy may have been cleaned away). */
+    static synchronized void syncShared(Context ctx) {
+        save(ctx, disabled(ctx));
+    }
+
+    private static Set<String> read(File f) {
         Set<String> out = new LinkedHashSet<>();
+        if (f == null || !f.isFile()) return out;
         try {
-            for (String l : Files.readAllLines(log(ctx).toPath(), StandardCharsets.UTF_8)) {
+            for (String l : Files.readAllLines(f.toPath(), StandardCharsets.UTF_8)) {
                 if (!l.trim().isEmpty()) out.add(l.trim());
             }
         } catch (Exception ignored) {
@@ -53,11 +87,15 @@ final class AppManager {
     }
 
     private static synchronized void save(Context ctx, Set<String> pkgs) {
-        try (FileOutputStream out = new FileOutputStream(log(ctx))) {
-            StringBuilder sb = new StringBuilder();
-            for (String p : pkgs) sb.append(p).append('\n');
-            out.write(sb.toString().getBytes(StandardCharsets.UTF_8));
-        } catch (Exception ignored) {
+        StringBuilder sb = new StringBuilder();
+        for (String p : pkgs) sb.append(p).append('\n');
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        for (File f : new File[] {log(ctx), sharedLog(ctx)}) {
+            if (f == null) continue;
+            try (FileOutputStream out = new FileOutputStream(f)) {
+                out.write(bytes);
+            } catch (Exception ignored) {
+            }
         }
     }
 

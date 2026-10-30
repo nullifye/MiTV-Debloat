@@ -495,8 +495,8 @@ public class MainActivity extends Activity {
     private void loadApps() {
         worker.execute(() -> {
             List<AppEntry> all = AppRepository.load(this);
-            long stamp = DockConfig.stamp(this);
             List<String> dockPkgs = DockConfig.load(this);
+            long stamp = DockConfig.stamp(this); // after load(), which may restore the shared copy
             dockStamp = stamp;
             UsageScores.Scores scores = UsageScores.read(this);
             main.post(() -> applyApps(all, dockPkgs, scores));

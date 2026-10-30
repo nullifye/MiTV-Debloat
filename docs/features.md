@@ -222,7 +222,7 @@ Open **http://\<TV IP\>:8486** on your phone, on the same Wi-Fi (Settings → Ph
 **App manager (USB debugging on):**
 - **Disable** runs `pm disable-user --user 0`, so the app is hidden and can't run, but nothing is uninstalled and its data stays. **Enable** reverses it.
 - **Never disabled:** this launcher and any other home-screen app, the TV's keyboard, Settings, the system UI, Play Store and Play Services, and the TV-input packages. Only apps with a launcher icon are offered.
-- **Logged** on the TV in `Android/data/my.rafhan.app.tvhome/files/disabled-by-remote.txt`. `scripts/restore.sh` reads it and re-enables those apps too.
+- **Logged** in TV Home's private storage, with a copy in `Android/data/my.rafhan.app.tvhome/files/disabled-by-remote.txt` that `scripts/restore.sh` and the setup app read to re-enable those apps too. The copy is written again at start and every hour, in case a junk cleaner removed it, and apps that are back on drop off the log by themselves.
 - **Free up cache** runs `pm trim-caches`, which empties every app's cache (Android 10 doesn't let the shell clear one app's). No "clear data": that would sign you out of apps.
 
 **Settings tab:**
@@ -271,7 +271,7 @@ The dock holds **one row of apps** (5 by default; **Settings → Home screen →
 
 **Missing apps:** if a dock app isn't installed, or is disabled, it's skipped and the dock shows the others. It comes back by itself once the app is installed or enabled again. The next time you edit the dock it's dropped, so it doesn't hold a hidden slot.
 
-**Where it's stored:** the order is saved in `/sdcard/Android/data/my.rafhan.app.tvhome/files/dock.txt`, one package per line, left to right. You can still push that file over ADB. Delete it to go back to the built-in default (`res/values/dock.xml`).
+**Where it's stored:** in TV Home's private storage, so updates and junk cleaners can't touch it. Xiaomi's TV Manager deletes files in apps' shared folders when the TV wakes, which used to reset the dock to the built-in default (`res/values/dock.xml`). A copy is kept in `/sdcard/Android/data/my.rafhan.app.tvhome/files/dock.txt`, one package per line, left to right, and written again if a cleaner removes it. Push your own `dock.txt` there over ADB to replace the dock; TV Home takes it in the next time the home screen opens.
 
 ## Change the wallpaper
 
