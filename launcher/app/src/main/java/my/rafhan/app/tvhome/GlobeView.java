@@ -292,10 +292,14 @@ final class GlobeView extends GLSurfaceView {
                     // The cloud map reads ~0.3 for clear land, ~0.45 for clear sea, 0.8–0.95 for cloud.
                     + "  float snow = texture2D(u_snow, v_uv).a * u_snowOn;\n"
                     + "  float cloud = pow(smoothstep(0.45, 0.95, texture2D(u_clouds, v_uv).r), 1.5) * u_cloudsOn;\n"
-                    + "  vec3 dayC = mix(day, vec3(0.84, 0.87, 0.92), snow * 0.75);\n"
-                    + "  dayC = mix(dayC, vec3(0.90, 0.91, 0.93), cloud * 0.8) * (0.40 + 0.60 * smoothstep(-0.05, 0.55, s));\n"
-                    + "  vec3 nightC = night * vec3(1.05, 0.95, 0.80) * (1.0 - cloud * 0.7) * u_lightsOn + vec3(0.003, 0.006, 0.016)\n"
+                    + "  vec3 ground = mix(day, vec3(0.84, 0.87, 0.92), snow * 0.75);\n"
+                    + "  ground = mix(ground, vec3(0.90, 0.91, 0.93), cloud * 0.8);\n"
+                    + "  vec3 dayC = ground * (0.40 + 0.60 * smoothstep(-0.05, 0.55, s));\n"
+                    // The night side: the city lights; or with those off, the day map, dimmed and a
+                    // little cool, so the land still shows and the night still reads as night.
+                    + "  vec3 lights = night * vec3(1.05, 0.95, 0.80) * (1.0 - cloud * 0.7) + vec3(0.003, 0.006, 0.016)\n"
                     + "      + vec3(0.020, 0.025, 0.035) * cloud;\n"
+                    + "  vec3 nightC = mix(ground * vec3(0.30, 0.33, 0.40), lights, u_lightsOn);\n"
                     + "  vec3 c = mix(nightC, dayC, lit);\n"
                     // The aurora glows green where it's dark.
                     + "  c += vec3(0.18, 0.80, 0.45) * smoothstep(0.03, 0.45, texture2D(u_aurora, v_uv).a) * (1.0 - lit) * 0.8 * u_auroraOn;\n"
