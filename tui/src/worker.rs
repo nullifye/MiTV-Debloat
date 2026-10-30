@@ -421,6 +421,7 @@ impl Worker {
             let p = |k: &str| props.get(k).cloned().unwrap_or_default();
             tv.model = p("ro.product.model");
             tv.brand = p("ro.product.brand");
+            tv.manufacturer = p("ro.product.manufacturer");
             tv.android = p("ro.build.version.release");
             tv.sdk = p("ro.build.version.sdk").parse().unwrap_or(0);
             tv.id = device::tv_id(&props, &serial);

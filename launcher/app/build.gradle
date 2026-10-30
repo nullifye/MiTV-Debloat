@@ -20,8 +20,8 @@ android {
         applicationId 'my.rafhan.app.tvhome'
         minSdk 26          // Android 8.0: the overlays, fonts and java.time need it; the Mi TV runs 10, the Mi Box 9
         targetSdk 36       // some Google TV 14 sets refuse old targets at install
-        versionCode 17
-        versionName '1.11.1'
+        versionCode 18
+        versionName '1.12.0'
     }
 
     signingConfigs {

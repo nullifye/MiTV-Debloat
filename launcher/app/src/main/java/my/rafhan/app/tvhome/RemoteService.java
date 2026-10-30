@@ -53,6 +53,7 @@ public class RemoteService extends Service implements LauncherSettings.Listener 
         NotificationManager nm = getSystemService(NotificationManager.class);
         nm.createNotificationChannel(new NotificationChannel(CHANNEL, "Phone remote", NotificationManager.IMPORTANCE_MIN));
         startForeground(1, notification());
+        RemoteAccessibilityService.checkSoon(this); // after an update it may not be reconnected
         netBanner = new NetBanner(this);
         netBanner.start();
         sleepTimer = new SleepTimer(this, netBanner);

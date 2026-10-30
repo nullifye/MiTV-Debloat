@@ -116,7 +116,15 @@ if [ ! -f "$B/accessibility-enabled-before.txt" ]; then
 fi
 CUR="$(A shell settings get secure enabled_accessibility_services | tr -d '\r')"
 case "$CUR" in
-  *"$SVC"*) ;;
+  # Already on (an update): Android doesn't always reconnect a service whose app was just
+  # replaced (the phone remote's Back/Home and the Input button go dead). Off and on again; the
+  # others stay on throughout.
+  *"$SVC"*)
+    OTHERS="$(printf %s "$CUR" | tr ':' '\n' | grep -v "^$PKG/" | paste -sd: -)"
+    if [ -n "$OTHERS" ]; then opt settings put secure enabled_accessibility_services "$OTHERS"
+    else opt settings delete secure enabled_accessibility_services; fi
+    sleep 1
+    opt settings put secure enabled_accessibility_services "$CUR" ;;
   null|"") opt settings put secure enabled_accessibility_services "$SVC" ;;
   *) opt settings put secure enabled_accessibility_services "$CUR:$SVC" ;;
 esac

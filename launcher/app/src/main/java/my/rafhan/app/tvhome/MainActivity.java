@@ -255,6 +255,8 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
         dp = getResources().getDisplayMetrics().density;
         wantInputs = ACTION_INPUTS.equals(getIntent().getAction());
+        // After an update Android sometimes leaves the accessibility service unconnected.
+        RemoteAccessibilityService.checkSoon(this);
         screenW = getResources().getDisplayMetrics().widthPixels;
         screenH = getResources().getDisplayMetrics().heightPixels;
         prefs = getSharedPreferences("home", MODE_PRIVATE);

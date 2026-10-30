@@ -120,7 +120,7 @@ A Rust ([ratatui](https://ratatui.rs)) front end to everything the scripts do, w
   - Restore follows `restore.sh` step by step.
 - **Debloat notes:**
   - `catalog.toml` is this project's own reviewed notes. *never* matches `AppManager.PROTECTED` in the launcher, and a test keeps the two in step.
-  - `catalog-cleanyourtv.toml` is generated from [cleanyourtv](https://github.com/Gathin23/cleanyourtv)'s 300+ per-model lists (MIT) by `tools/import_cleanyourtv.py`. It pre-ticks only ads, tracking and promos that owners of at least two TVs disabled, and never anything that looks like a system part (a test checks this).
+  - `catalog-cleanyourtv.toml` is generated from [cleanyourtv](https://github.com/Gathin23/cleanyourtv)'s 370+ per-model lists (MIT) by `tools/import_cleanyourtv.py`. It pre-ticks only ads, tracking and promos that owners of at least two TVs disabled, and never anything that looks like a system part (a test checks this).
   - Ours wins for any package in both. To refresh it, clone cleanyourtv and run `python3 -I tui/tools/import_cleanyourtv.py <clone> tui/catalog-cleanyourtv.toml`.
 
 ```bash

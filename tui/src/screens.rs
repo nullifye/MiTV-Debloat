@@ -440,10 +440,7 @@ impl App {
         let tv = self.tv();
         if let Some(t) = tv {
             v.body.push(Line::from(vec![
-                Span::styled(
-                    format!("{} {}", t.brand, t.model).trim().to_string(),
-                    Style::new().add_modifier(Modifier::BOLD),
-                ),
+                Span::styled(t.name(), Style::new().add_modifier(Modifier::BOLD)),
                 Span::styled(
                     format!("  ·  Android {}  ·  {}", t.android, t.serial),
                     Style::new().fg(DIM),
@@ -1317,9 +1314,7 @@ impl App {
         match (&self.conn, self.tv()) {
             (Conn::Ready, Some(t)) => {
                 v.push(Span::styled("● ", Style::new().fg(OK)));
-                v.push(Span::raw(
-                    format!("{} {}", t.brand, t.model).trim().to_string(),
-                ));
+                v.push(Span::raw(t.name()));
                 if !narrow {
                     v.push(Span::styled(
                         format!("  {}", t.serial),

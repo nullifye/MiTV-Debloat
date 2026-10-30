@@ -338,6 +338,8 @@ pub struct TvInfo {
     pub state: String,
     pub model: String,
     pub brand: String,
+    /// `ro.product.manufacturer`: some makers put their name here rather than in the brand.
+    pub manufacturer: String,
     pub android: String,
     pub sdk: u32,
     pub ip: Option<String>,
@@ -350,6 +352,67 @@ pub struct TvInfo {
 }
 
 impl TvInfo {
+    /// What the TV is, for people: "Xiaomi Mi TV (MiTV-MOOQ0)", "NVIDIA Shield (SHIELD Android
+    /// TV)", "Chromecast with Google TV", "Sony Google TV (BRAVIA 4K VH2)". Worked out from the
+    /// maker, brand and model the TV reports, and whether Google TV's launcher is on it, so it
+    /// needs no list of models; an unknown maker reads "<Maker> Android TV (<model>)".
+    pub fn name(&self) -> String {
+        let m = self.manufacturer.to_lowercase();
+        let b = self.brand.to_lowercase();
+        let model = self.model.trim();
+        let ml = model.to_lowercase();
+        let is = |s: &str| m.contains(s) || b.contains(s);
+        let kind = if self.google_tv {
+            "Google TV"
+        } else {
+            "Android TV"
+        };
+        let friendly =
+            if is("xiaomi") || b == "mi" || ml.starts_with("mitv") || ml.starts_with("mibox") {
+                if ml.contains("box") {
+                    "Xiaomi Mi Box".to_string()
+                } else if ml.contains("stick") {
+                    "Xiaomi Mi TV Stick".to_string()
+                } else {
+                    "Xiaomi Mi TV".to_string()
+                }
+            } else if is("nvidia") {
+                if ml.contains("shield") {
+                    "NVIDIA Shield"
+                } else {
+                    "NVIDIA"
+                }
+                .to_string()
+            } else if is("google") && ml.contains("chromecast") {
+                "Chromecast with Google TV".to_string()
+            } else if is("google") && ml.contains("streamer") {
+                "Google TV Streamer".to_string()
+            } else {
+                let maker = [&self.manufacturer, &self.brand]
+                    .into_iter()
+                    .map(|s| s.trim())
+                    .find(|s| !s.is_empty() && *s != "unknown")
+                    .unwrap_or("");
+                // "SONY" / "sony" → "Sony"; short all-capitals names (TCL, LG) stay as they are.
+                let maker = if maker.len() > 3 && maker.chars().all(|c| !c.is_lowercase())
+                    || maker.chars().all(|c| !c.is_uppercase())
+                {
+                    let mut ch = maker.chars();
+                    ch.next()
+                        .map(|f| f.to_uppercase().collect::<String>() + &ch.as_str().to_lowercase())
+                        .unwrap_or_default()
+                } else {
+                    maker.to_string()
+                };
+                format!("{maker} {kind}").trim().to_string()
+            };
+        if model.is_empty() || friendly.to_lowercase().contains(&ml) {
+            friendly
+        } else {
+            format!("{friendly} ({model})")
+        }
+    }
+
     pub fn home_is_ours(&self) -> bool {
         self.home.as_deref().map(package_of) == Some(PKG)
     }
@@ -409,6 +472,46 @@ mod tests {
         assert!(!connect_succeeded(
             "cannot connect to 192.168.0.9:5555: Connection refused"
         ));
+    }
+
+    #[test]
+    fn names_the_tv_from_what_it_reports() {
+        let tv = |manufacturer: &str, brand: &str, model: &str, google_tv: bool| TvInfo {
+            manufacturer: manufacturer.into(),
+            brand: brand.into(),
+            model: model.into(),
+            google_tv,
+            ..Default::default()
+        };
+        assert_eq!(
+            tv("Xiaomi", "Xiaomi", "MiTV-MOOQ0", false).name(),
+            "Xiaomi Mi TV (MiTV-MOOQ0)"
+        );
+        assert_eq!(
+            tv("Xiaomi", "Xiaomi", "MIBOX4", false).name(),
+            "Xiaomi Mi Box (MIBOX4)"
+        );
+        assert_eq!(
+            tv("NVIDIA", "NVIDIA", "SHIELD Android TV", false).name(),
+            "NVIDIA Shield (SHIELD Android TV)"
+        );
+        assert_eq!(
+            tv("Google", "google", "Chromecast", true).name(),
+            "Chromecast with Google TV"
+        );
+        assert_eq!(
+            tv("Sony", "Sony", "BRAVIA 4K VH2", true).name(),
+            "Sony Google TV (BRAVIA 4K VH2)"
+        );
+        assert_eq!(
+            tv("TCL", "TCL", "Smart TV Pro", true).name(),
+            "TCL Google TV (Smart TV Pro)"
+        );
+        assert_eq!(
+            tv("SONY", "", "KD-55X80J", false).name(),
+            "Sony Android TV (KD-55X80J)"
+        );
+        assert_eq!(tv("", "", "", false).name(), "Android TV");
     }
 
     #[test]

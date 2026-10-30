@@ -62,10 +62,11 @@ pub fn build(status: Option<&Status>, store: &Store, dry_run: bool, log: &[&LogE
         }
         if let Some(t) = &st.tv {
             let _ = writeln!(r, "\nTV:");
+            let _ = writeln!(r, "  {} (Android {}, SDK {})", t.name(), t.android, t.sdk);
             let _ = writeln!(
                 r,
-                "  {} {} (Android {}, SDK {})",
-                t.brand, t.model, t.android, t.sdk
+                "  manufacturer {}  brand {}  model {}",
+                t.manufacturer, t.brand, t.model
             );
             let _ = writeln!(r, "  address {}  state {}", t.serial, t.state);
             let _ = writeln!(

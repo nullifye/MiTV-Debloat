@@ -297,6 +297,43 @@ pub fn install(env: &mut Env, src: &ApkSource, handover: bool) -> Result<Plan> {
             )
             .optional(),
         );
+    } else if let (Some(all), Some(others)) = (
+        current.as_deref(),
+        device::a11y_without_ours(current.as_deref()),
+    ) {
+        // Already on (an update): Android doesn't always reconnect a service whose app was just
+        // replaced, which leaves the phone remote's Back/Home and the Input button dead. Off and
+        // on again reconnects it; the others stay on throughout.
+        let off = if others.is_empty() {
+            adb.shell(&[
+                "settings",
+                "delete",
+                "secure",
+                "enabled_accessibility_services",
+            ])
+        } else {
+            adb.shell(&[
+                "settings",
+                "put",
+                "secure",
+                "enabled_accessibility_services",
+                &others,
+            ])
+        };
+        p.push(Step::adb("Reconnect the accessibility service (off)", off).optional());
+        p.push(
+            Step::adb(
+                "Reconnect the accessibility service (on)",
+                adb.shell(&[
+                    "settings",
+                    "put",
+                    "secure",
+                    "enabled_accessibility_services",
+                    all,
+                ]),
+            )
+            .optional(),
+        );
     }
     p.push(
         Step::adb(
@@ -1151,6 +1188,53 @@ mod tests {
             .on("accessibility_enabled", "1\n")
             .on("enabled_accessibility_services", "flar2.homebutton/a.i\n")
             .on("pm install", "Success\n")
+    }
+
+    #[test]
+    fn an_update_reconnects_the_accessibility_service() {
+        let d = tmp("install-update");
+        let store = Store::at(&d);
+        let both = format!("flar2.homebutton/a.i:{A11Y_SERVICE}");
+        // mi_tv() but with ours already on next to Button Mapper.
+        let r = FakeRunner::new()
+            .on("getprop ro.build.version.sdk", "29\n")
+            .on(
+                "dumpsys window",
+                "  mFocusedApp=ActivityRecord{1 u0 my.rafhan.app.tvhome/.MainActivity t1}\n",
+            )
+            .on(
+                "resolve-activity",
+                "priority=0\ncom.google.android.tvlauncher/.MainActivity\n",
+            )
+            .on("accessibility_enabled", "1\n")
+            .on("enabled_accessibility_services", &format!("{both}\n"))
+            .on("pm install", "Success\n");
+        let mut emit = |_e: EngineEvent| {};
+        let mut env = Env {
+            adb: &adb(),
+            runner: &r,
+            store: &store,
+            emit: &mut emit,
+        };
+        let p = install(&mut env, &local_apk(&d), false).unwrap();
+        let l = lines(&p);
+        let off = l
+            .iter()
+            .position(|x| {
+                x.ends_with(
+                    "settings put secure enabled_accessibility_services flar2.homebutton/a.i",
+                )
+            })
+            .expect("ours taken off, Button Mapper kept");
+        let on = l
+            .iter()
+            .position(|x| {
+                x.ends_with(&format!(
+                    "settings put secure enabled_accessibility_services {both}"
+                ))
+            })
+            .expect("and put back");
+        assert!(off < on);
     }
 
     #[test]
