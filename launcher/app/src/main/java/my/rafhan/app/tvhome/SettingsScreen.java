@@ -43,14 +43,17 @@ final class SettingsScreen {
     private static final int TEXT = 0xFFFFFFFF, DIM = 0x8CFFFFFF, GREEN = 0xFF34C759, AMBER = 0xFFFFB340;
     private static final int TOGGLE = 0, CHOICE = 1, PICKER = 2, ACTION = 3, INFO = 4, CHECK = 5;
 
-    private static final int HOME = 0, PRAYER = 1, USAGE = 2, ALERTS = 3, STATUS = 4, REMOTE = 5, HIDDEN = 6; // About: 7
-    private static final String[] CATS = {"Home screen", "Prayer times", "Most used", "Notifications",
+    private static final int HOME = 0, PRAYER = 1, SAVER = 2, USAGE = 3, ALERTS = 4, STATUS = 5, REMOTE = 6,
+            HIDDEN = 7; // About: 8
+    private static final String[] CATS = {"Home screen", "Prayer times", "Screen saver", "Most used", "Notifications",
             "Info overlay", "Phone remote", "Running apps", "About"};
     private static final String[] CAT_SUBS = {"Cards, clock and wallpaper", "Zone and card",
-            "Your top apps this week", "What the bell tells you", "Speed, uptime and clock over apps",
-            "Control the TV from your phone", "Apps hidden from the list", "Version and TV settings"};
-    private static final int[] CAT_ICONS = {R.drawable.ic_tv, R.drawable.ic_crescent, R.drawable.ic_chart, R.drawable.ic_bell,
-            R.drawable.ic_status_bar, R.drawable.ic_phone, R.drawable.ic_ram, R.drawable.ic_info};
+            "What the TV shows when idle", "Your top apps this week", "What the bell tells you",
+            "Speed, uptime and clock over apps", "Control the TV from your phone", "Apps hidden from the list",
+            "Version and TV settings"};
+    private static final int[] CAT_ICONS = {R.drawable.ic_tv, R.drawable.ic_crescent, R.drawable.ic_screensaver,
+            R.drawable.ic_chart, R.drawable.ic_bell, R.drawable.ic_status_bar, R.drawable.ic_phone, R.drawable.ic_ram,
+            R.drawable.ic_info};
     private static final String LIVE_TV = "com.mediatek.wwtv.tvcenter";
 
     interface Host {
@@ -58,6 +61,12 @@ final class SettingsScreen {
         void onFocusMoved();
 
         void openTvSettings();
+
+        /** The TV's own screen-saver settings, where "Prayer time" or "Live log" can be chosen. */
+        void openScreenSaverSettings();
+
+        /** Starts the screen saver now, as a preview. */
+        void startScreenSaver();
 
         /** Shows a wallpaper without saving it (focus in the Wallpaper list); null: the saved one. */
         void previewWallpaper(String id);
@@ -71,6 +80,7 @@ final class SettingsScreen {
         String[] names;
         Supplier<String> value;
         Runnable action;
+        java.util.function.BooleanSupplier on; // a switch for something other than a LauncherSettings flag
         boolean checked;
         String id;         // wallpaper list: what this row shows
         boolean thumbSlot; // wallpaper list: a small preview on the left
@@ -224,6 +234,13 @@ final class SettingsScreen {
         return row < rowViews.size() ? rowViews.get(row) : null;
     }
 
+    /** Rows again from current state (e.g. the screen saver switch after a preview). */
+    void refreshRows() {
+        if (picker != null) return;
+        rows = rowsFor(cat);
+        render();
+    }
+
     void up() {
         move(-1);
     }
@@ -296,7 +313,8 @@ final class SettingsScreen {
     private void act(Row r) {
         switch (r.type) {
             case TOGGLE:
-                LauncherSettings.setFlag(ctx, r.key, !LauncherSettings.flag(ctx, r.key));
+                if (r.on != null) r.action.run();
+                else LauncherSettings.setFlag(ctx, r.key, !LauncherSettings.flag(ctx, r.key));
                 break;
             case CHOICE: {
                 int now = LauncherSettings.choice(ctx, r.key), i = 0;
@@ -343,6 +361,7 @@ final class SettingsScreen {
         switch (c) {
             case HOME: homeRows(out); break;
             case PRAYER: prayerRows(out); break;
+            case SAVER: saverRows(out); break;
             case USAGE: usageRows(out); break;
             case ALERTS: alertRows(out); break;
             case STATUS: statusRows(out); break;
@@ -351,6 +370,42 @@ final class SettingsScreen {
             default: aboutRows(out); break;
         }
         return out;
+    }
+
+    /**
+     * The TV's screen saver (ScreenSaver): on/off, which one (OK cycles Prayer time → Live log →
+     * the TV's others), and a preview. Some TVs can't open their screen-saver page from another
+     * app, so with WRITE_SECURE_SETTINGS TV Home sets it itself; without, it opens the TV's Settings.
+     */
+    private void saverRows(List<Row> out) {
+        android.content.ComponentName current = ScreenSaver.current(ctx);
+        String name = ScreenSaver.label(ctx, current);
+        if (ScreenSaver.canSet(ctx)) {
+            Row on = new Row(TOGGLE, "Screen saver");
+            on.sub = "Starts when the TV has been idle for a while";
+            on.on = () -> ScreenSaver.enabled(ctx);
+            on.action = () -> ScreenSaver.setEnabled(ctx, !ScreenSaver.enabled(ctx));
+            out.add(on);
+            Row show = new Row(PICKER, "Show");
+            // What the chosen one shows, so the row explains itself as OK cycles.
+            String what = ScreenSaver.prayer(ctx).equals(current) ? "Big clock, dates and prayer times"
+                    : ScreenSaver.log(ctx).equals(current) ? "The TV's live log, scrolling on black"
+                    : "One of the TV's own screen savers";
+            show.sub = what;
+            show.value = () -> name;
+            show.action = () -> ScreenSaver.next(ctx);
+            out.add(show);
+        } else {
+            Row pick = new Row(ACTION, "Choose a screen saver");
+            pick.sub = "In the TV's Settings: \"Prayer time\" (clock and prayer times) or \"Live log\"";
+            pick.value = () -> name;
+            pick.action = host::openScreenSaverSettings;
+            out.add(pick);
+        }
+        Row now = new Row(ACTION, "Start now");
+        now.sub = "Preview it: any key ends it";
+        now.action = host::startScreenSaver;
+        out.add(now);
     }
 
     private void prayerRows(List<Row> out) {
@@ -784,7 +839,8 @@ final class SettingsScreen {
         String value = r.value != null ? r.value.get() : null;
         switch (r.type) {
             case TOGGLE:
-                v.addView(switchView(LauncherSettings.flag(ctx, r.key)), margin(new LinearLayout.LayoutParams(px(44), px(26))));
+                boolean isOn = r.on != null ? r.on.getAsBoolean() : LauncherSettings.flag(ctx, r.key);
+                v.addView(switchView(isOn), margin(new LinearLayout.LayoutParams(px(44), px(26))));
                 break;
             case CHOICE:
             case PICKER: {

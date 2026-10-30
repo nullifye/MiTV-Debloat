@@ -33,6 +33,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.provider.Settings;
 import android.text.format.DateFormat;
 import android.view.Gravity;
@@ -347,6 +348,34 @@ public class MainActivity extends Activity {
             @Override
             public void openTvSettings() {
                 startSafely(new Intent(Settings.ACTION_SETTINGS));
+            }
+
+            @Override
+            public void startScreenSaver() {
+                Context ctx = MainActivity.this;
+                // SystemUI's "start screen saver now" (the dock shortcut) runs the chosen one, but
+                // only while screen savers are on: switch them on for the start, then back off.
+                boolean wasOff = !ScreenSaver.enabled(ctx);
+                if (wasOff && !ScreenSaver.canSet(ctx)) {
+                    Toast.makeText(ctx, "Turn the screen saver on first", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                if (wasOff) ScreenSaver.setEnabled(ctx, true);
+                startSafely(new Intent(Intent.ACTION_MAIN)
+                        .setClassName("com.android.systemui", "com.android.systemui.Somnambulator")
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+                // Switching them off again ends a running screen saver, so that waits until the
+                // preview is over and the launcher is back in front (onWindowFocusChanged).
+                if (wasOff) previewStartedAt = SystemClock.uptimeMillis();
+            }
+
+            @Override
+            public void openScreenSaverSettings() {
+                try {
+                    startActivity(new Intent(Settings.ACTION_DREAM_SETTINGS));
+                } catch (ActivityNotFoundException | SecurityException e) {
+                    startSafely(new Intent(Settings.ACTION_SETTINGS)); // no screen-saver page
+                }
             }
 
             @Override
@@ -1793,7 +1822,27 @@ public class MainActivity extends Activity {
     public void onWindowFocusChanged(boolean hasFocus) {
         super.onWindowFocusChanged(hasFocus);
         updateLive();
+        if (hasFocus && previewStartedAt != 0) {
+            main.removeCallbacks(endPreview);
+            main.postDelayed(endPreview, 600);
+        }
     }
+
+    // Settings → Screen saver → Start now while screen savers were off: when they went back on
+    // (0: no preview running that needs it).
+    private long previewStartedAt;
+
+    /**
+     * Back in front after a preview: screen savers off again, as they were. Checked a moment
+     * later and only after the preview could have run, because the launcher briefly regains focus
+     * between the start shortcut closing and the screen saver appearing.
+     */
+    private final Runnable endPreview = () -> {
+        if (previewStartedAt == 0 || !hasWindowFocus() || SystemClock.uptimeMillis() - previewStartedAt < 2_000) return;
+        previewStartedAt = 0;
+        ScreenSaver.setEnabled(this, false);
+        settingsScreen.refreshRows();
+    };
 
     private void updateLive() {
         boolean want = resumed && hasWindowFocus();

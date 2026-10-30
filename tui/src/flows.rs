@@ -133,6 +133,15 @@ fn grants(sdk: u32) -> Vec<(&'static str, Vec<&'static str>)> {
             vec!["pm", "grant", PKG, "android.permission.DUMP"],
         ),
         (
+            "Pick the screen saver from TV Home's Settings",
+            vec![
+                "pm",
+                "grant",
+                PKG,
+                "android.permission.WRITE_SECURE_SETTINGS",
+            ],
+        ),
+        (
             "Usage stats (bell)",
             vec!["pm", "grant", PKG, "android.permission.PACKAGE_USAGE_STATS"],
         ),

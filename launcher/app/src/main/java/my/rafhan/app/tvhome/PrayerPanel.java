@@ -229,7 +229,8 @@ final class PrayerPanel {
     }
 
     /** "1448-05-08" -> "8 Jamadilawal 1448H". */
-    private static String hijri(String raw) {
+    /** "1448-05-19" (JAKIM) -> "19 Jamadilawal 1448H". */
+    static String hijri(String raw) {
         String[] p = raw.split("-");
         if (p.length != 3) return raw;
         try {
@@ -266,6 +267,31 @@ final class PrayerPanel {
                     LocalTime[] t = new LocalTime[KEYS.length];
                     for (int k = 0; k < KEYS.length; k++) t[k] = parse(o.optString(KEYS[k]));
                     return t;
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
+    }
+
+    /**
+     * Today's Hijri date ("19 Jamadilawal 1448H") for {@code zone} from the month cache, for the
+     * screen saver's clock; null if that month isn't cached yet. Blocking (file read).
+     */
+    static String cachedHijri(Context ctx, String zone, LocalDate date) {
+        File f = new File(ctx.getFilesDir(), "prayer-" + zone + "-" + YearMonth.from(date) + ".json");
+        if (!f.isFile()) return null;
+        try (BufferedReader r = new BufferedReader(new FileReader(f))) {
+            StringBuilder sb = new StringBuilder();
+            for (String line; (line = r.readLine()) != null; ) sb.append(line);
+            JSONArray month = new JSONArray(sb.toString());
+            for (int i = 0; i < month.length(); i++) {
+                JSONObject o = month.optJSONObject(i);
+                String d = o == null ? "" : o.optString("date");
+                if (d.length() >= 2 && TextUtils.isDigitsOnly(d.substring(0, 2))
+                        && Integer.parseInt(d.substring(0, 2)) == date.getDayOfMonth()) {
+                    String h = o.optString("hijri");
+                    return h.isEmpty() ? null : hijri(h);
                 }
             }
         } catch (Exception ignored) {

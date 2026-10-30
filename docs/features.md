@@ -69,6 +69,24 @@ A thin bar over every other app: **network speed** (`↓ 1.2 Mb  ↑ 34 Kb`), **
 - **Cost:** it ticks once a second only while it's showing. On the home screen, with the screen off or switched off, nothing runs.
 - It can't be focused or touched, so it never takes a key press from the app underneath.
 
+## Screen savers: Prayer time and Live log
+
+Two screen savers, both on black and drifting so nothing burns in. Everything about them is in TV Home's **Settings → Screen saver** (under Prayer times):
+
+- **Screen saver:** on or off. Off means the TV never starts one.
+- **Show:** OK cycles Prayer time → Live log → every other screen saver on the TV (A–Z); the row shows the one in use.
+- **Start now:** a preview of the chosen one; any key ends it. It works even with the screen saver off: it's switched on just for the preview and back off when you return.
+
+Some TVs, like this Mi TV, can't open their screen-saver page from another app, so TV Home sets these itself. That needs `WRITE_SECURE_SETTINGS`, granted by the setup app and `build-and-install.sh`. Without it, the page offers **Choose a screen saver** (opens the TV's Settings) and **Start now**. The TV's own Settings → Device Preferences → Screen saver still works too.
+
+- **Prayer time:** a big clock with seconds, the date, the Hijri date and today's five prayer times, each with its icon from the prayer card, the next one in amber. The Hijri date and times come from the prayer-times data, so they match the home screen. The whole block moves to a new spot every minute, fading out and in.
+- **Live log:** the TV's log, live. Newest lines at the bottom, one per line in a small monospace font: time, level, tag and message. Errors are dim red, warnings dim amber, everything else grey. New lines glide in from below (faster when many arrive at once) rather than jumping. A small clock with seconds sits near an edge. Every minute the log block slides to a new offset (up to 24 dp either way) and the clock jumps to another edge.
+  - **When the log can't be read** (no `READ_LOGS`, and USB debugging off), it shows the Prayer time picture instead, and tries the log again every 30 s.
+  - It reads the log like the bell's Play Store updates: with `READ_LOGS` below Android 13, else over the launcher's own ADB connection while USB debugging is on.
+  - Everything in the log appears on screen, which can include Wi-Fi names or account names.
+- **Against burn-in:** nothing is white, the screen is dimmed, and the picture keeps moving even when nothing changes.
+- Any key wakes the TV.
+
 ## Now Playing
 
 Under the System card, whenever an app has a media session (RadioStream, Spotify, music apps):
@@ -102,6 +120,7 @@ The gear at the end of the top bar opens the launcher's Settings: categories on 
 |---|---|
 | Home screen | Clock Auto / 12-hour / 24-hour, apps per row (5, 6 or 7: the dock and the app list), System card, Now Playing card, wallpaper dim (Off/Low/Medium/High), wallpaper (Bing daily photo, seven built-in photos, your pictures or none). A hidden card's column closes up. |
 | Prayer times | Zone (picker), prayer card on/off, azan on/off, reminder before prayer (Off / 5 / 10 / 15 / 30 min), play azan now |
+| Screen saver | On/off, which one (OK cycles Prayer time, Live log and the TV's others), Start now (preview) |
 | Most used | Most used card on/off, week starts on (Monday / Sunday), leave out (app picker) |
 | Notifications | TV Home updates, Play Store updates, new HDMI devices, Bluetooth, connection status, low memory (each on/off), low-memory level 80/85/90 % |
 | Info overlay | Show over apps on/off (off by default), what the left, centre and right show (network speed / uptime / clock / elapsed time / nothing), position (top / bottom), text size (small / medium / large), background on/off |

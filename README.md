@@ -59,6 +59,7 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
       <ul>
         <li><b>Azan</b> at each prayer time with a banner over any app, plus a silent reminder a few minutes before (you choose how early).</li>
         <li><b>Wallpapers</b>: Bing's photo of the day (scenery only, no people), seven photos from Wikimedia Commons, previewed as you move through the list, plus your own pictures from a <code>Wallpapers</code> folder.</li>
+        <li><b>Two screen savers</b>: a big clock with the Hijri date and today's prayer times, or the TV's live log, both on black and drifting so nothing burns in.</li>
         <li><b>Notifications bell</b>: new TV Home versions (update from the bell in one click), Play Store updates, new HDMI devices, Bluetooth devices and low memory.</li>
         <li><b>Connection status</b>: a banner over any app when Wi-Fi drops or loses internet.</li>
         <li><b>Info overlay</b> over apps (optional): network speed, uptime, a clock with seconds and time since you left the home screen; hidden on the home screen.</li>

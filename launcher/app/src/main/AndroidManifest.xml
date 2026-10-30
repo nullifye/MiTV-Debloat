@@ -43,6 +43,11 @@
     <uses-permission
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
+    <!-- Settings → Home screen → Screen saver picks the TV's screen saver itself (ScreenSaver):
+         some TVs can't open their screen-saver page from another app. Granted over ADB. -->
+    <uses-permission
+        android:name="android.permission.WRITE_SECURE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
     <!-- Bell: apps with an update waiting, from the Play Store's log lines (PlayUpdates). A
          development permission, granted over ADB like DUMP; only used below Android 13. -->
     <uses-permission
@@ -84,6 +89,10 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="*/*" />
         </intent>
+        <!-- Settings → Home screen → Screen saver lists every screen saver on the TV. -->
+        <intent>
+            <action android:name="android.service.dreams.DreamService" />
+        </intent>
     </queries>
 
     <application
@@ -113,6 +122,29 @@
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Screen savers (TV Settings → Screen saver): the TV's live log on black, or a clock with
+             the dates and prayer times (also what the log one shows when it can't read the log). -->
+        <service
+            android:name=".ClockDream"
+            android:exported="true"
+            android:label="Prayer time"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".LogDream"
+            android:exported="true"
+            android:label="Live log"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
 
         <activity
             android:name=".UpdateActivity"
