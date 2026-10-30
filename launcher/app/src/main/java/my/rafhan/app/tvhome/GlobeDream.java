@@ -45,6 +45,7 @@ public class GlobeDream extends DreamService {
         FrameLayout root = new FrameLayout(ui);
         root.setBackgroundColor(0xFF000000);
         globe = new GlobeView(ui, feeds);
+        globe.failed = this::cantDraw;
         overlay = new GlobeView.Overlay(ui, feeds);
         root.addView(globe);
         root.addView(overlay);
@@ -97,6 +98,14 @@ public class GlobeDream extends DreamService {
                 }
                 return true;
         }
+    }
+
+    /**
+     * The GPU couldn't draw the globe: the screen saver stays as it is (clock, legend, the latest
+     * edit and quake) with a line in the middle saying so, rather than a puzzling black screen.
+     */
+    private void cantDraw() {
+        if (globe != null && overlay != null) overlay.cantDraw(globe.gpu);
     }
 
     private void startGlobe() {

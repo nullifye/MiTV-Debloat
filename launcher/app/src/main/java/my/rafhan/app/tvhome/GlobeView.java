@@ -94,6 +94,9 @@ final class GlobeView extends GLSurfaceView {
     // Turning the arrows asked for and not yet done (degrees), and when one was last pressed (uptime).
     private double toTurn, toTilt;
     private volatile long lastInput = -IDLE_MS;
+    /** Run (on the main thread) if the globe can't be drawn on this TV; gpu says which graphics chip. */
+    volatile Runnable failed;
+    volatile String gpu = "";
     // Globe drift (px): eased from (fromX, fromY) to (toX, toY) starting at slideAt.
     private volatile float fromX, fromY, toX, toY;
     private volatile long slideAt;
@@ -255,7 +258,9 @@ final class GlobeView extends GLSurfaceView {
                     + "uniform sampler2D u_day, u_night, u_clouds, u_snow, u_aurora;\n"
                     + "uniform mat3 u_toEarth;\n"
                     + "uniform vec3 u_sun, u_sunView;\n"
-                    + "uniform vec2 u_center;\n"
+                    // Not u_center: a uniform in both shaders must have the same precision, and on
+                    // GPUs without highp here (Mali-400/450: Mi Box 4) the link fails, leaving black.
+                    + "uniform vec2 u_mid;\n"
                     + "uniform float u_radius, u_maghrib, u_fajr;\n"
                     + "uniform float u_linesOn, u_lightsOn, u_cloudsOn, u_snowOn, u_auroraOn, u_glintOn, u_rimOn;\n"
                     + "const vec3 MAGHRIB = vec3(0.80, 0.58, 0.25), FAJR = vec3(0.30, 0.66, 0.62);\n"
@@ -264,7 +269,7 @@ final class GlobeView extends GLSurfaceView {
                     + "  return (1.0 - smoothstep(0.9 * px, 2.2 * px, d)) * 0.85 + exp(-d / (5.0 * px)) * 0.18;\n"
                     + "}\n"
                     + "void main() {\n"
-                    + "  vec2 p = (gl_FragCoord.xy - u_center) / u_radius;\n"
+                    + "  vec2 p = (gl_FragCoord.xy - u_mid) / u_radius;\n"
                     + "  float r = length(p), px = 1.0 / u_radius;\n"
                     // The atmosphere: brighter on the side towards the sun; with the sunlit rim on, much
                     // more so, and a little warm right where the sunlight comes in.
@@ -404,6 +409,13 @@ final class GlobeView extends GLSurfaceView {
         public void onSurfaceCreated(GL10 unused, EGLConfig config) {
             globe = program(GLOBE_VS, GLOBE_FS);
             dots = program(DOT_VS, DOT_FS);
+            if (globe == 0) { // this GPU can't draw it: let the screen saver show something else
+                String chip = GLES20.glGetString(GLES20.GL_RENDERER);
+                gpu = chip == null ? "" : chip;
+                android.util.Log.w("TvHome", "globe: can't draw on " + gpu);
+                Runnable f = failed;
+                if (f != null) post(f);
+            }
             windProg = program(WIND_VS, WIND_FS);
             windBuf = ByteBuffer.allocateDirect(windVerts.length * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
             float[] range = new float[2];
@@ -458,6 +470,7 @@ final class GlobeView extends GLSurfaceView {
 
             GLES20.glUseProgram(globe);
             GLES20.glUniform2f(loc(globe, "u_center"), cx, cy);
+            GLES20.glUniform2f(loc(globe, "u_mid"), cx, cy);
             GLES20.glUniform2f(loc(globe, "u_screen"), width, height);
             GLES20.glUniform1f(loc(globe, "u_half"), radius * 1.1f);
             GLES20.glUniform1f(loc(globe, "u_radius"), radius);
@@ -1003,6 +1016,7 @@ final class GlobeView extends GLSurfaceView {
         private android.animation.ValueAnimator fade;
         private final Layers on = new Layers();
         private final Paint hint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private String problem; // null, or the graphics chip that couldn't draw the globe
         private long hintFrom = SystemClock.uptimeMillis(); // shown for HINT_MS from the start
         private static final long HINT_MS = 8_000;
 
@@ -1035,6 +1049,12 @@ final class GlobeView extends GLSurfaceView {
                 if (f.length >= 3 && f[1].equals(code)) return "Your zone: " + f[2].split(",")[0].trim();
             }
             return "Your zone";
+        }
+
+        /** The globe can't be drawn on this TV: say so in the middle, the rest stays as it is. */
+        void cantDraw(String gpu) {
+            problem = gpu.isEmpty() ? "" : " (" + gpu + ")";
+            invalidate();
         }
 
         /** An arrow was pressed: no need to show how any more. */
@@ -1112,6 +1132,15 @@ final class GlobeView extends GLSurfaceView {
             float place = clock.measureText(t.replaceAll("\\d", "8")); // fixed width: no shuffle each second
             clock.setAlpha(a);
             c.drawText(t, (legendRight ? getWidth() - pad - place : pad) + jitterX, pad + clock.getTextSize() + jitterY, clock);
+
+            // The globe couldn't be drawn: say so where it would be.
+            if (problem != null) {
+                hint.setAlpha(a);
+                String l1 = "This TV can't draw the globe" + problem, l2 = "Its graphics chip doesn't support what it needs";
+                float cx = getWidth() / 2f + jitterX, cy = getHeight() / 2f + jitterY;
+                c.drawText(l1, cx - hint.measureText(l1) / 2, cy, hint);
+                c.drawText(l2, cx - hint.measureText(l2) / 2, cy + hint.getFontSpacing(), hint);
+            }
 
             // How to use it, for the first few seconds (fading out over the last two), in the top
             // corner the clock isn't in: the globe nearly reaches the top in the middle.
