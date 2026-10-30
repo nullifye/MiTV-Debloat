@@ -168,7 +168,7 @@ Measured on 2026-10-25 with `scripts/benchmark.sh <home component> <label>`, usi
 | Back to home from an app (wait time) | 22–24 ms | 17–20 ms |
 | Janky frames while navigating | **5.8 % (33/567)** | 22.4 % (74/331) |
 | Frame time p50 / p90 / p99 | 7 / **8** / 61 ms | 5 / 22 / 40 ms |
-| APK size | **0.65 MB** | 12.7 MB |
+| APK size (TV Home 1.10.6) | **0.48 MB** | 12.7 MB |
 
 **Notes:**
 - **Idle memory depends on the graphics buffers.** About 45 MB of this launcher's PSS is GPU memory (`GL mtrack`: the window's buffers, the wallpaper and the tile textures). Whether they're all allocated when the idle sample is taken changes the idle figure a lot: earlier runs measured 44–51 MB idle, this one 88 MB, settling at 82 MB a few minutes later. The after-navigating figure, when everything is drawn, is steady across runs (75–83 MB) and is the fairer comparison.

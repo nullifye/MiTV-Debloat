@@ -184,8 +184,8 @@ Open **http://\<TV IP\>:8486** on your phone, on the same Wi-Fi (Settings → Ph
 </table>
 
 **Pairing (once per phone):**
-1. Tap **Show PIN on TV**. A 4-digit PIN appears in the middle of the TV for 60 seconds.
-2. Type it on the phone, and optionally a name for the phone. The phone keeps a token.
+1. Tap **Show PIN on TV**. A 6-digit PIN appears in the middle of the TV for 60 seconds.
+2. Type it on the phone. The phone's name above it starts as a random one ("Calm Otter"); change it if you like. The phone keeps a token.
 3. After 5 wrong tries the PIN is voided and you ask for a new one.
 
 **Phone names:** the list of paired phones (Settings tab) uses the name typed when pairing. Without one, it guesses from the browser, but Chrome no longer tells plain-HTTP pages the phone's model: its browser description reads "Android 10; K" on every phone, so those show as "Android phone". **Rename** next to "(this phone)" in that list names it.

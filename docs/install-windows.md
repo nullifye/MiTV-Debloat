@@ -192,6 +192,9 @@ adb shell appops set my.rafhan.app.tvhome SYSTEM_ALERT_WINDOW allow
 adb shell pm grant my.rafhan.app.tvhome android.permission.DUMP
 adb shell pm grant my.rafhan.app.tvhome android.permission.PACKAGE_USAGE_STATS
 adb shell pm grant my.rafhan.app.tvhome android.permission.BLUETOOTH_CONNECT
+adb shell pm grant my.rafhan.app.tvhome android.permission.WRITE_SECURE_SETTINGS
+adb shell pm grant my.rafhan.app.tvhome android.permission.READ_LOGS
+adb shell appops set my.rafhan.app.tvhome REQUEST_INSTALL_PACKAGES allow
 ```
 
 | Command | What it's for |
@@ -204,6 +207,9 @@ adb shell pm grant my.rafhan.app.tvhome android.permission.BLUETOOTH_CONNECT
 | `DUMP` | **Now Playing** card and the **bell**'s Play Store updates |
 | `PACKAGE_USAGE_STATS` | The bell's Play Store updates |
 | `BLUETOOTH_CONNECT` | Bluetooth alerts in the bell (Android 12 and newer; older TVs print an error, that's fine) |
+| `WRITE_SECURE_SETTINGS` | **Settings → Screen saver**: turning the screen saver on or off and choosing Prayer time, Live log or another one from TV Home |
+| `READ_LOGS` | The **Live log** screen saver and the bell's Play Store updates. Only used on Android 12 and older (Android 13+ asks on screen every time an app reads the log), so skip it on newer TVs |
+| `REQUEST_INSTALL_PACKAGES` | Updating TV Home from the bell in one click ("install unknown apps") |
 
 ### Step 8. Let the phone remote press Back and Home
 
