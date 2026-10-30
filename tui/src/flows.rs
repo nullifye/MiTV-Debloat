@@ -503,11 +503,30 @@ pub fn setup_all(
     for pkg in &rec {
         p.push(disable_step(&adb, pkg, format!("Disable {pkg}")).optional());
     }
+    // Kept apps that wake up by themselves while you watch (PatchWall): stopped in the background.
+    let limit = crate::catalog::background_limits(&cat, &enabled);
+    for pkg in &limit {
+        p.push(restrict_step(&adb, pkg));
+    }
     if block_ads {
         let dns = private_dns(env);
         p.steps.extend(dns.steps);
     }
 
+    if !limit.is_empty() {
+        let names: Vec<String> = limit
+            .iter()
+            .map(|p| {
+                cat.get(p)
+                    .map(|e| e.label.clone())
+                    .unwrap_or_else(|| p.clone())
+            })
+            .collect();
+        p.say(format!(
+            "Stop {} running in the background, so it can't wake up while you watch (it still opens)",
+            names.join(", ")
+        ));
+    }
     p.summary.retain(|l| !l.starts_with("Press Home"));
     if !rec.is_empty() {
         let list = if names.len() > 5 {
@@ -1010,6 +1029,39 @@ pub fn private_dns(env: &mut Env) -> Plan {
     p
 }
 
+/// Stop one app running in the background, recorded so "Undo all changes" lifts it.
+fn restrict_step(adb: &Adb, pkg: &str) -> Step {
+    Step::adb(
+        format!("Restrict {pkg}"),
+        adb.shell(&[
+            "cmd",
+            "appops",
+            "set",
+            pkg,
+            "RUN_ANY_IN_BACKGROUND",
+            "ignore",
+        ]),
+    )
+    .optional()
+    .then_record(Record::BgRestricted(pkg.to_string()))
+}
+
+/// Stop the apps the notes mark `restrict` (PatchWall) running in the background, if this TV
+/// has them on.
+pub fn restrict_recommended(env: &mut Env) -> Plan {
+    let cat = crate::catalog::Catalog::builtin();
+    let enabled = env.installed(&["-e"]);
+    let pkgs = crate::catalog::background_limits(&cat, &enabled);
+    if pkgs.is_empty() {
+        let mut p = Plan::new("Stop apps waking up by themselves");
+        p.notes
+            .push("This TV has none of the apps that need it.".into());
+        p.done = "Nothing to do on this TV.".into();
+        return p;
+    }
+    restrict_background(env, &pkgs)
+}
+
 /// Stop apps running in the background (they still work when opened).
 pub fn restrict_background(env: &mut Env, pkgs: &[String]) -> Plan {
     let mut p = Plan::new(format!(
@@ -1019,22 +1071,9 @@ pub fn restrict_background(env: &mut Env, pkgs: &[String]) -> Plan {
     ));
     p.notes
         .push("They still open and work; they just can't run when they're not on screen.".into());
+    let adb = env.adb.clone();
     for pkg in pkgs {
-        p.push(
-            Step::adb(
-                format!("Restrict {pkg}"),
-                env.adb.shell(&[
-                    "cmd",
-                    "appops",
-                    "set",
-                    pkg,
-                    "RUN_ANY_IN_BACKGROUND",
-                    "ignore",
-                ]),
-            )
-            .optional()
-            .then_record(Record::BgRestricted(pkg.clone())),
-        );
+        p.push(restrict_step(&adb, pkg));
     }
     p.say(format!(
         "Stop {} app(s) running when they're not on screen (they still open and work)",

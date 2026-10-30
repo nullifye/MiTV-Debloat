@@ -100,6 +100,9 @@ public class MainActivity extends Activity {
     private static final Object PAYLOAD_TILE = new Object();
 
     private final Handler main = new Handler(Looper.getMainLooper());
+    /** Open the Inputs menu (the remote's Input button on a TV without its own picker: InputsActivity). */
+    static final String ACTION_INPUTS = "my.rafhan.app.tvhome.action.INPUTS";
+    private boolean wantInputs;
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
     private final Map<String, AppEntry> rendered = new HashMap<>();
     private final List<ImageView> dockTiles = new ArrayList<>();
@@ -251,6 +254,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         dp = getResources().getDisplayMetrics().density;
+        wantInputs = ACTION_INPUTS.equals(getIntent().getAction());
         screenW = getResources().getDisplayMetrics().widthPixels;
         screenH = getResources().getDisplayMetrics().heightPixels;
         prefs = getSharedPreferences("home", MODE_PRIVATE);
@@ -1766,6 +1770,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (wantInputs) {
+            wantInputs = false;
+            main.postDelayed(this::openMenu, 400);
+        }
         resumed = true;
         hiddenSinceResume = false;
         IntentFilter tf = new IntentFilter(Intent.ACTION_TIME_TICK);
@@ -1860,6 +1868,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        if (ACTION_INPUTS.equals(intent.getAction())) { // opened in onResume, once laid out
+            wantInputs = true;
+            return;
+        }
         // Home pressed while already home: close the menu and go back to the dock.
         if (!hiddenSinceResume) {
             if (section == MENU) closeMenu();

@@ -68,6 +68,8 @@ pub enum Request {
     WifiScanOff,
     PrivateDns,
     RestrictBackground(Vec<String>),
+    /// The apps the notes mark `restrict` (PatchWall), if the TV has them.
+    RestrictRecommended,
     Reboot,
 }
 
@@ -550,6 +552,7 @@ impl Worker {
             Request::WifiScanOff => flows::wifi_scan_off(&mut env),
             Request::PrivateDns => flows::private_dns(&mut env),
             Request::RestrictBackground(p) => flows::restrict_background(&mut env, &p),
+            Request::RestrictRecommended => flows::restrict_recommended(&mut env),
             Request::Reboot => flows::reboot(&mut env),
         })
     }

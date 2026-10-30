@@ -505,6 +505,7 @@ impl App {
                 self.find_tvs();
             }
             Act::Tweak(0) => self.request(Request::WifiScanOff),
+            Act::Tweak(2) => self.request(Request::RestrictRecommended),
             Act::Tweak(_) => self.request(Request::PrivateDns),
             Act::UndoAll => self.request(Request::Restore { remove_launcher: self.remove_launcher }),
             Act::ToggleRemoveLauncher => self.remove_launcher = !self.remove_launcher,

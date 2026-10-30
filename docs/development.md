@@ -27,7 +27,8 @@ MiTV-Debloat/
 │   ├── build-and-install.sh     check the computer and TV, build the launcher (R8 release, ~0.6 MB APK), install it, make it the home screen
 │   ├── benchmark.sh             measure a launcher's memory, CPU, start-up and smoothness
 │   ├── restore.sh               undo everything (back to the TV's own launcher)
-│   ├── disable.sh               disable packages (and log them so restore.sh can undo)
+│   ├── disable.sh               disable packages, or --recommended (and log them so restore.sh can undo)
+│   ├── restrict.sh              stop apps running in the background, or --recommended (logged the same way)
 │   ├── key.sh / shot.sh         send remote keys / pull a screenshot (for testing)
 │   └── env.sh                   TV address: TV=<ip> once, then remembered in .tv (not in the repo)
 └── shots/                       screenshots taken during the work

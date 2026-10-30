@@ -8,6 +8,7 @@ Every feature in detail: what it shows, how to use it, and how it gets its data.
 - **Top bar** (round icon buttons):
   - **Bell** shows notifications (see below).
   - **Inputs** opens a dropdown with HDMI 1–3, AV and Live TV. It switches through the TV input framework.
+  - **The remote's Input button** works again. The TV's hotkey dispatcher opens one named screen of the stock TV launcher for it, so with that disabled the button did nothing. TV Home's accessibility service (the phone remote's, already on) now catches that one key, letting every other key through untouched, and opens the TV's own input picker when it has one (PatchWall's on Xiaomi), otherwise this dropdown (`InputsActivity`).
   - **Wi-Fi** shows the connection state by colour and opens Wi-Fi settings.
   - **Settings** (gear) opens the launcher's own Settings (see below); its last row, **About → TV settings**, opens the TV's Settings.
 - **Remote:**

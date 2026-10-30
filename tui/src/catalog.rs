@@ -21,6 +21,9 @@ pub struct Entry {
     pub category: String,
     pub advice: Advice,
     pub note: String,
+    /// Keep it, but stop it running in the background (it still works when opened).
+    #[serde(default)]
+    pub restrict: bool,
 }
 
 #[derive(Deserialize)]
@@ -117,6 +120,32 @@ pub fn recommended<'a>(
     v
 }
 
+/// The apps to stop running in the background: on, and marked `restrict` in the notes. Sorted.
+pub fn background_limits<'a>(
+    cat: &Catalog,
+    enabled: impl IntoIterator<Item = &'a String>,
+) -> Vec<String> {
+    let mut v: Vec<String> = enabled
+        .into_iter()
+        .filter(|p| cat.get(p).map(|e| e.restrict).unwrap_or(false))
+        .cloned()
+        .collect();
+    v.sort();
+    v.dedup();
+    v
+}
+
+impl Catalog {
+    /// Every package marked `restrict`, whether or not this TV has it.
+    pub fn restricted(&self) -> Vec<&str> {
+        self.by_package
+            .values()
+            .filter(|e| e.restrict)
+            .map(|e| e.package.as_str())
+            .collect()
+    }
+}
+
 /// Every Home-answering package from `query-activities` output (ours excluded).
 pub fn home_packages(components: &[String]) -> BTreeSet<String> {
     components
@@ -135,6 +164,12 @@ mod tests {
         let c = Catalog::builtin();
         assert!(c.len() > 50);
         assert_eq!(c.get("com.xiaomi.statistic").unwrap().advice, Advice::Safe);
+        // Recommended from this project's own list, not only cleanyourtv's.
+        let ours = Catalog::parse(include_str!("../catalog.toml")).unwrap();
+        assert_eq!(
+            ours.get("com.mitv.tvhome.mitvplus").unwrap().advice,
+            Advice::Safe
+        );
         assert_eq!(c.get("com.android.vending").unwrap().advice, Advice::Never);
     }
 
@@ -264,6 +299,23 @@ mod tests {
         assert!(refusal(&c, &guard, "com.google.android.tvlauncher").is_none());
         assert!(refusal(&c, &guard, "com.xiaomi.statistic").is_none());
         assert!(refusal(&c, &guard, "some.unknown.app").is_none());
+    }
+
+    #[test]
+    fn patchwall_is_limited_not_turned_off() {
+        let c = Catalog::builtin();
+        let pw = c.get("com.mitv.tvhome.atv").unwrap();
+        assert_eq!(pw.advice, Advice::Keep);
+        assert!(pw.restrict);
+        assert_eq!(c.restricted(), vec!["com.mitv.tvhome.atv"]);
+        let on: Vec<String> = ["com.mitv.tvhome.atv", "com.xiaomi.statistic", "some.app"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(
+            background_limits(&c, &on),
+            vec!["com.mitv.tvhome.atv".to_string()]
+        );
     }
 
     #[test]

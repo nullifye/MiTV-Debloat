@@ -4,7 +4,7 @@
     <string name="settings">Settings</string>
     <string name="wifi">Wi-Fi</string>
     <string name="remote_a11y_label">Home phone remote</string>
-    <string name="remote_a11y_description">Lets the phone remote press Back and Home in any app. It does not read the screen.</string>
+    <string name="remote_a11y_description">Lets the phone remote press Back and Home in any app, and makes the remote\'s Input button open the input picker. It does not read the screen or any other key.</string>
     <!-- JAKIM e-solat zone code (SGR03 = Kuala Lumpur, Putrajaya). List: https://www.e-solat.gov.my -->
     <string name="prayer_zone" translatable="false">SGR03</string>
 </resources>

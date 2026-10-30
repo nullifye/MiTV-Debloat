@@ -8,6 +8,9 @@
 #   never     the TV needs it: the menu won't disable it
 #   handover  Google TV Home: done by Install → Google TV handover, not here
 #
+# restrict = true: kept, but better stopped from running in the background (it still works when
+# opened). "Set up my TV", Speed and privacy, and scripts/restrict.sh --recommended do that.
+#
 # Everything is only *disabled* (pm disable-user --user 0), never uninstalled; Restore turns it
 # back on.
 
@@ -49,6 +52,14 @@ label = "PatchWall channels"
 category = "Content and ads"
 advice = "safe"
 note = "PatchWall's content and ad rows."
+brands = ["xiaomi"]
+
+[[app]]
+package = "com.mitv.tvhome.mitvplus"
+label = "Mi TV+"
+category = "Content and ads"
+advice = "safe"
+note = "Xiaomi's free, ad-funded live channels. Turn it back on if you watch them."
 brands = ["xiaomi"]
 
 [[app]]
@@ -181,8 +192,9 @@ package = "com.mitv.tvhome.atv"
 label = "PatchWall"
 category = "Kept on purpose"
 advice = "keep"
-note = "Hosts Xiaomi's Input popup."
+note = "Hosts Xiaomi's Input popup. Its scheduled jobs wake it while you watch, so it's stopped from running in the background; the popup still opens."
 brands = ["xiaomi"]
+restrict = true
 
 [[app]]
 package = "com.mitv.videoplayer"

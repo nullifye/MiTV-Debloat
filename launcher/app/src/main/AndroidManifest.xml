@@ -157,6 +157,20 @@
             </intent-filter>
         </service>
 
+        <!-- The remote's Input button (RemoteAccessibilityService catches it), and Android TV's
+             "show inputs" when asked for without naming the (disabled) stock TV launcher. -->
+        <activity
+            android:name=".InputsActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="com.android.tv.action.VIEW_INPUTS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".UpdateActivity"
             android:exported="false"

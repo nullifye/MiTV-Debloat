@@ -879,6 +879,20 @@ impl App {
             "The TV stops scanning for networks it isn't using. A little less work for the TV.",
             Act::Tweak(0),
         ));
+        let limited = self.store.lines(crate::backup::BG_RESTRICTED);
+        let done = self
+            .catalog
+            .restricted()
+            .iter()
+            .any(|p| limited.iter().any(|l| l == p));
+        v.push(choice(
+            format!(
+                "Stop apps waking up by themselves{}",
+                if done { "  (done before)" } else { "" }
+            ),
+            "Xiaomi's PatchWall runs scheduled jobs while you watch, which can make 4K video stutter. It still opens (the Input button's picker).",
+            Act::Tweak(2),
+        ));
         v.push(choice("Back", "", Act::Back));
         v
     }
