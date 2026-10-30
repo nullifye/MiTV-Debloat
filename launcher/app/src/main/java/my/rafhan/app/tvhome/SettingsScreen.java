@@ -378,7 +378,7 @@ final class SettingsScreen {
 
     /**
      * The TV's screen saver (ScreenSaver): on/off, which one (OK cycles Prayer time → Live log →
-     * the TV's others), and a preview. Some TVs can't open their screen-saver page from another
+     * Globe → the TV's others), a preview, and with Globe chosen, a switch for each of its layers. Some TVs can't open their screen-saver page from another
      * app, so with WRITE_SECURE_SETTINGS TV Home sets it itself; without, it opens the TV's Settings.
      */
     private void saverRows(List<Row> out) {
@@ -394,6 +394,7 @@ final class SettingsScreen {
             // What the chosen one shows, so the row explains itself as OK cycles.
             String what = ScreenSaver.prayer(ctx).equals(current) ? "Big clock, dates and prayer times"
                     : ScreenSaver.log(ctx).equals(current) ? "The TV's live log, scrolling on black"
+                    : ScreenSaver.globe(ctx).equals(current) ? "The Earth now, with live dots. The arrows turn it"
                     : "One of the TV's own screen savers";
             show.sub = what;
             show.value = () -> name;
@@ -401,7 +402,7 @@ final class SettingsScreen {
             out.add(show);
         } else {
             Row pick = new Row(ACTION, "Choose a screen saver");
-            pick.sub = "In the TV's Settings: \"Prayer time\" (clock and prayer times) or \"Live log\"";
+            pick.sub = "In the TV's Settings: \"Prayer time\" (clock and prayer times), \"Live log\" or \"Globe\"";
             pick.value = () -> name;
             pick.action = host::openScreenSaverSettings;
             out.add(pick);
@@ -410,6 +411,24 @@ final class SettingsScreen {
         now.sub = "Preview it: any key ends it";
         now.action = host::startScreenSaver;
         out.add(now);
+        if (ScreenSaver.globe(ctx).equals(current)) {
+            out.add(toggle(LauncherSettings.GLOBE_PRAYER_LINES, "Prayer lines", "Where it's Maghrib and Fajr right now"));
+            out.add(toggle(LauncherSettings.GLOBE_MAKKAH, "Makkah and qibla", "The Kaaba, and the way to it from your zone"));
+            out.add(toggle(LauncherSettings.GLOBE_ZONE, "Your zone", "Where your prayer zone is"));
+            out.add(toggle(LauncherSettings.GLOBE_CITY_LIGHTS, "City lights", "The night side's lights"));
+            out.add(toggle(LauncherSettings.GLOBE_GLINT, "Sun glint", "The sun's reflection on the sea"));
+            out.add(toggle(LauncherSettings.GLOBE_RIM, "Sunlit rim", "The atmosphere glows brighter on the sun's side"));
+            out.add(toggle(LauncherSettings.GLOBE_SNOW, "Snow and sea ice", "From NASA, daily"));
+            out.add(toggle(LauncherSettings.GLOBE_CLOUDS, "Clouds", "From weather satellites, every 3 hours"));
+            out.add(toggle(LauncherSettings.GLOBE_WIND, "Wind", "Moving lines: the wind near the ground, NOAA's forecast"));
+            out.add(toggle(LauncherSettings.GLOBE_AURORA, "Aurora", "NOAA's forecast, every 15 minutes"));
+            out.add(toggle(LauncherSettings.GLOBE_EDITS, "Map edits", "OpenStreetMap edits as people save them"));
+            out.add(toggle(LauncherSettings.GLOBE_QUAKES, "Earthquakes", "Magnitude 2.5 and up, the past day"));
+            out.add(toggle(LauncherSettings.GLOBE_ISS, "ISS", "The International Space Station"));
+            out.add(toggle(LauncherSettings.GLOBE_TIANGONG, "Tiangong", "China's space station"));
+            out.add(toggle(LauncherSettings.GLOBE_HUBBLE, "Hubble", "The Hubble Space Telescope"));
+            out.add(toggle(LauncherSettings.GLOBE_LEGEND, "Legend", "What each colour and icon means, with the latest edit and earthquake"));
+        }
     }
 
     private void prayerRows(List<Row> out) {

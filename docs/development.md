@@ -137,7 +137,7 @@ The launcher's pure logic is unit tested on the computer, so a change doesn't ne
 
 ```bash
 cd launcher
-./gradlew testDebugUnitTest     # just the tests (37 of them, a few seconds)
+./gradlew testDebugUnitTest     # just the tests (70 of them, a few seconds)
 ./gradlew lint                  # Android lint; errors fail the build, warnings don't
 ./gradlew assembleRelease       # the APK scripts/build-and-install.sh installs
 ```
@@ -151,6 +151,14 @@ Gradle needs Java 17+: `export JAVA_HOME="$(/usr/libexec/java_home -v 17+)"` on 
 | `DockConfigTest` | `dock.txt` parsing and cleaning (comments, blanks, duplicates, the 5-app cap) |
 | `UsageScoresTest` | "Most used": the week window, the per-day merge, per-app totals, exclusions |
 | `RemotePairingTest` | Pairing: PIN lifetime, tries, lockout and its exponential backoff |
+| `RemoteDevicesTest` | Paired phones' names: the name typed on the phone wins, Chrome's "K" isn't a model, older browsers and iPhones |
+| `PlayUpdatesTest` | The bell's Play Store updates: reading the Play Store's log lines, and apps leaving the list once updated, disabled or forgotten |
+| `UpdateCheckTest` | TV Home's own updates: versions compared number by number |
+| `StatusOverlayTest` | Info overlay: speed in decimal bits a second, uptime and elapsed time, the clock |
+| `DreamViewTest` | Screen savers: splitting `logcat` lines (Live log), the Hijri date as on the home screen |
+| `GlobeTest` | Globe: where the sun is overhead, the prayer lines against JAKIM's times for Kuala Lumpur, the Earth's tilt and the sun in the ecliptic frame, great circles (qibla), every JAKIM zone has a place, reading OpenStreetMap, USGS and aurora feeds, snow and ice map colours, picking the GFS run |
+| `OrbitTest` | Globe satellites: SGP4 against the reference implementation (ISS and Tiangong within 10 m; GPS within 25 km without the Moon and Sun), reading CelesTrak's files |
+| `GribTest` | Globe wind: reading NOAA's GRIB2 (complex packing with spatial differencing, against a real global field; simple packing) |
 
 `.github/workflows/ci.yml` runs the same three tasks on every push and pull request, validates the Gradle wrapper and uploads the release APK as a build artifact.
 
@@ -168,7 +176,7 @@ Measured on 2026-10-25 with `scripts/benchmark.sh <home component> <label>`, usi
 | Back to home from an app (wait time) | 22–24 ms | 17–20 ms |
 | Janky frames while navigating | **5.8 % (33/567)** | 22.4 % (74/331) |
 | Frame time p50 / p90 / p99 | 7 / **8** / 61 ms | 5 / 22 / 40 ms |
-| APK size (TV Home 1.10.6) | **0.48 MB** | 12.7 MB |
+| APK size (TV Home 1.11.0) | **0.51 MB** | 12.7 MB |
 
 **Notes:**
 - **Idle memory depends on the graphics buffers.** About 45 MB of this launcher's PSS is GPU memory (`GL mtrack`: the window's buffers, the wallpaper and the tile textures). Whether they're all allocated when the idle sample is taken changes the idle figure a lot: earlier runs measured 44–51 MB idle, this one 88 MB, settling at 82 MB a few minutes later. The after-navigating figure, when everything is drawn, is steady across runs (75–83 MB) and is the fairer comparison.

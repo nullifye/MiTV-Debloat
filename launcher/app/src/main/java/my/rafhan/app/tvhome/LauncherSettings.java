@@ -30,6 +30,13 @@ final class LauncherSettings {
             STATUS_BAR = "status_bar", STATUS_LEFT = "status_left", STATUS_CENTER = "status_center",
             STATUS_RIGHT = "status_right", STATUS_POS = "status_position", STATUS_SIZE = "status_size",
             STATUS_BG = "status_background", APPS_PER_ROW = "apps_per_row";
+    // The Globe screen saver's layers (Settings → Screen saver, when Globe is the one shown).
+    static final String GLOBE_PRAYER_LINES = "globe_prayer_lines", GLOBE_MAKKAH = "globe_makkah",
+            GLOBE_ZONE = "globe_zone", GLOBE_CITY_LIGHTS = "globe_city_lights", GLOBE_CLOUDS = "globe_clouds",
+            GLOBE_SNOW = "globe_snow", GLOBE_AURORA = "globe_aurora", GLOBE_EDITS = "globe_edits",
+            GLOBE_QUAKES = "globe_quakes", GLOBE_ISS = "globe_iss", GLOBE_TIANGONG = "globe_tiangong",
+            GLOBE_HUBBLE = "globe_hubble", GLOBE_LEGEND = "globe_legend", GLOBE_WIND = "globe_wind",
+            GLOBE_GLINT = "globe_glint", GLOBE_RIM = "globe_rim";
 
     /** What a status-bar slot shows. */
     static final int SLOT_NONE = 0, SLOT_SPEED = 1, SLOT_UPTIME = 2, SLOT_CLOCK = 3, SLOT_ELAPSED = 4;
@@ -75,9 +82,12 @@ final class LauncherSettings {
         return prefs(ctx).getBoolean(key, defaultFlag(key));
     }
 
-    /** Every switch starts on, except the info overlay: it would double up with an overlay app. */
+    /**
+     * Every switch starts on, except the info overlay (it would double up with an overlay app)
+     * and the Globe's clouds and wind (they cover much of the map; wind also takes more CPU).
+     */
     private static boolean defaultFlag(String key) {
-        return !STATUS_BAR.equals(key);
+        return !STATUS_BAR.equals(key) && !GLOBE_CLOUDS.equals(key) && !GLOBE_WIND.equals(key);
     }
 
     static void setFlag(Context ctx, String key, boolean on) {

@@ -1,6 +1,6 @@
 # Mi TV debloat + Apple TV style launcher
 
-A fast, minimal home screen for **Android TV and Google TV** (Android 8.0 or newer), with prayer times, a live system card, Now Playing, a running-apps screen and a phone remote. It was built on a Xiaomi Mi TV, which was also [debloated](docs/xiaomi-debloat.md).
+A fast, minimal home screen for **Android TV and Google TV** (Android 8.0 or newer), with prayer times, a live system card, Now Playing, a running-apps screen, a phone remote and a live globe screen saver. It was built on a Xiaomi Mi TV, which was also [debloated](docs/xiaomi-debloat.md).
 
 **Install it on your TV:** [Windows](docs/install-windows.md) · [macOS](docs/install-macos.md) · [Linux](docs/install-linux.md) · [with an AI agent](docs/install-with-ai-agent.md)
 
@@ -24,6 +24,10 @@ A fast, minimal home screen for **Android TV and Google TV** (Android 8.0 or new
 https://github.com/user-attachments/assets/8c54b279-a93a-4732-a06b-bfd6f9cd3b32
 
 Recorded on the TV (2 minutes, no sound): the dock's name and glow following focus, Now Playing, the running-apps screen and its hold-OK menu, Settings with wallpapers previewed as you move, the prayer zone list, and moving an app in the dock.
+
+https://github.com/user-attachments/assets/fefd8d49-178f-4e7a-b011-14a44a562c13
+
+The Globe screen saver (21 seconds, no sound): Settings → Screen saver → **Start now**, then the Earth turning as it is right now, with the Maghrib line passing Malaysia, Makkah and the qibla, the sun's glint on the sea, city lights, the day's earthquakes, map edits as people save them, and the ISS and Tiangong overhead.
 
 ## Features
 
@@ -58,7 +62,7 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
   </tr>
   <tr>
     <td valign="top"><b>Wallpapers</b>: move to preview, OK to set. Add your own from the phone remote: Settings → Wallpaper → Your photo.</td>
-    <td valign="top"><b>Settings → Screen saver</b>: switch it on or off, choose Prayer time, Live log or any other screen saver on the TV, and preview it with Start now.</td>
+    <td valign="top"><b>Settings → Screen saver</b>: switch it on or off, choose Prayer time, Live log, Globe or any other screen saver on the TV, and preview it with Start now. With Globe chosen, each of its layers has a switch.</td>
   </tr>
   <tr>
     <td width="50%"><img src="docs/screensaver-prayer.jpg" width="100%" alt="Prayer time screen saver: big clock, date, Hijri date and today's prayer times"></td>
@@ -66,7 +70,13 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
   </tr>
   <tr>
     <td valign="top"><b>Screen saver: Prayer time</b>: a big clock with seconds, the date, the Hijri date and today's prayer times, the next one in amber.</td>
-    <td valign="top"><b>Screen saver: Live log</b>: the TV's log as it happens, errors in red and warnings in amber. Both screen savers are on black and keep moving so nothing burns in (<a href="docs/features.md#screen-savers-prayer-time-and-live-log">more</a>).</td>
+    <td valign="top"><b>Screen saver: Live log</b>: the TV's log as it happens, errors in red and warnings in amber. All the screen savers are on black and keep moving so nothing burns in (<a href="docs/features.md#screen-savers-prayer-time-and-live-log">more</a>).</td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="docs/screensaver-globe.jpg" width="100%" alt="Globe screen saver: the Earth with day and night, the prayer lines, Makkah and your zone, live map edits and earthquakes, the space stations and Hubble, with a legend"></td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top"><b>Screen saver: Globe</b>: the Earth as it sits in space right now, lit by the real sun, turning once every 2 minutes. On it: where it's Maghrib and Fajr right now, Makkah and the qibla from your zone, city lights, the sun's glint on the sea, snow and sea ice, the aurora, map edits as people save them, the day's earthquakes, and the ISS, Tiangong and Hubble where they are now. Clouds and moving wind can be switched on too. The remote's arrows turn it (<a href="docs/features.md#globe">more</a>).</td>
   </tr>
   <tr>
     <td colspan="2" valign="top">
@@ -78,7 +88,7 @@ Recorded on the TV (2 minutes, no sound): the dock's name and glow following foc
         <li><b>Connection status</b>: a banner over any app when Wi-Fi drops or loses internet.</li>
         <li><b>Info overlay</b> over apps (optional): network speed, uptime, a clock with seconds and time since you left the home screen; hidden on the home screen.</li>
         <li><b>Inputs</b> menu for HDMI 1–3, AV and Live TV.</li>
-        <li>Light: a 0.48 MB app that starts about 3× faster than the stock launcher, uses about a third less memory after navigating, and has a quarter of its janky frames (<a href="#benchmark">benchmark</a>).</li>
+        <li>Light: a 0.51 MB app that starts about 3× faster than the stock launcher, uses about a third less memory after navigating, and has a quarter of its janky frames (<a href="#benchmark">benchmark</a>).</li>
       </ul>
     </td>
   </tr>
@@ -141,7 +151,7 @@ Against the stock Android TV launcher on the Mi TV (2026-10-25, launcher 1.8). M
 | Back to home from an app (wait time) | 22–24 ms | 17–20 ms |
 | Janky frames while navigating | **5.8 % (33/567)** | 22.4 % (74/331) |
 | Frame time p50 / p90 / p99 | 7 / **8** / 61 ms | 5 / 22 / 40 ms |
-| APK size | **0.48 MB** | 12.7 MB |
+| APK size | **0.51 MB** | 12.7 MB |
 
 ## Security
 
@@ -149,6 +159,7 @@ This setup is meant for a TV on your own network, and it deliberately makes the 
 
 - **USB debugging stays on** (port 5555): anyone on your Wi-Fi can connect with `adb` and control the TV. The launcher uses the same loopback connection for the remote's D-pad and keyboard inside apps, screenshots, sleep/restart and disabling apps. Turn it off in Developer options when you don't need those — the rest of the phone remote keeps working.
 - **What the launcher is granted over ADB:** "draw over other apps" (the pairing PIN and messages over any app), an accessibility service (Back and Home from the remote), `DUMP` (Now Playing without USB debugging), `WRITE_SECURE_SETTINGS` (choosing and switching the screen saver from TV Home's Settings), `READ_LOGS` below Android 13 (the Live log screen saver and Play Store updates in the bell; it can read the whole system log, which stays on the TV) and All files access (the Files tab and the `Wallpapers` folder). The accessibility service can see what's on screen; it only ever sends Back and Home.
+- **The Globe screen saver fetches public data while it's on screen** (and keeps it for offline use): NASA's Earth maps (once, from Wikimedia Commons), OpenStreetMap's edits, USGS's earthquakes, CelesTrak's satellite orbits, NOAA's aurora and wind, NASA's snow and ice, and the cloud map, each only if its layer is switched on. The requests carry nothing about you or the TV beyond what any web request does (its address and a `TvHome/1.0` user agent).
 - **The phone remote is plain HTTP on port 8486.** Pairing needs a six-digit PIN shown on the TV (five tries, then a lockout that grows to 15 minutes), and the server refuses requests whose `Host` isn't an IP address and any cross-site request, so a web page can't drive the TV. Traffic isn't encrypted though: keep the TV on a trusted WPA2/WPA3 network, never forward the port from your router, and use Settings → Phone remote → Forget all phones if you lose a phone.
 - **Releases are signed with the project's own key**, so every GitHub Release updates the last one in place, settings kept. Building it yourself without that key signs with your computer's debug key instead: switching between a self-built and a downloaded APK needs one uninstall, which resets the launcher's settings. See [development.md](docs/development.md#release-signing-and-github-releases).
 
@@ -163,7 +174,7 @@ scripts/restore.sh --remove-launcher  # ...and uninstalls this launcher
 
 ## More
 
-- [How every feature works](docs/features.md): prayer times and azan, bell, Now Playing, running apps, Settings, Most used, System card, phone remote, dock, wallpapers (with photo credits)
+- [How every feature works](docs/features.md): prayer times and azan, bell, screen savers (and the Globe's data credits), Now Playing, running apps, Settings, Most used, System card, phone remote, dock, wallpapers (with photo credits)
 - [Debloating the original Mi TV](docs/xiaomi-debloat.md): what was disabled and kept, speed tweaks, ad-blocking DNS
 - [Development](docs/development.md): folder structure, rebuilding, benchmark method
 - [PROMPT.md](PROMPT.md): the prompt to repeat the whole setup on another TV with an AI agent

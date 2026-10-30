@@ -89,7 +89,7 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:mimeType="*/*" />
         </intent>
-        <!-- Settings → Home screen → Screen saver lists every screen saver on the TV. -->
+        <!-- Settings → Screen saver lists every screen saver on the TV. -->
         <intent>
             <action android:name="android.service.dreams.DreamService" />
         </intent>
@@ -123,8 +123,9 @@
             </intent-filter>
         </activity>
 
-        <!-- Screen savers (TV Settings → Screen saver): the TV's live log on black, or a clock with
-             the dates and prayer times (also what the log one shows when it can't read the log). -->
+        <!-- Screen savers (TV Home's Settings → Screen saver, or the TV's): a clock with the dates
+             and prayer times (also what the others show while they can't run), the TV's live log
+             on black, and the Earth turning with the prayer lines and live dots. -->
         <service
             android:name=".ClockDream"
             android:exported="true"
@@ -139,6 +140,16 @@
             android:name=".LogDream"
             android:exported="true"
             android:label="Live log"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".GlobeDream"
+            android:exported="true"
+            android:label="Globe"
             android:permission="android.permission.BIND_DREAM_SERVICE">
             <intent-filter>
                 <action android:name="android.service.dreams.DreamService" />

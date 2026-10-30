@@ -13,8 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * The TV's screen saver, picked in TV Home's Settings → Home screen → Screen saver: OK cycles
- * Prayer time → Live log → every other screen saver on the TV (A–Z), like the TV's own list.
+ * The TV's screen saver, picked in TV Home's Settings → Screen saver: OK cycles Prayer time →
+ * Live log → Globe → every other screen saver on the TV (A–Z), like the TV's own list.
  * Some TVs (this Mi TV) can't open their screen-saver page from another app, so TV Home writes
  * the choice itself. That needs WRITE_SECURE_SETTINGS, a development permission granted over ADB
  * by the setup app and build-and-install.sh; without it the row opens the TV's Settings instead.
@@ -30,6 +30,10 @@ final class ScreenSaver {
 
     static ComponentName log(Context ctx) {
         return new ComponentName(ctx, LogDream.class);
+    }
+
+    static ComponentName globe(Context ctx) {
+        return new ComponentName(ctx, GlobeDream.class);
     }
 
     static boolean canSet(Context ctx) {
@@ -60,6 +64,7 @@ final class ScreenSaver {
         List<ComponentName> out = new ArrayList<>();
         out.add(prayer(ctx));
         out.add(log(ctx));
+        out.add(globe(ctx));
         PackageManager pm = ctx.getPackageManager();
         List<ComponentName> others = new ArrayList<>();
         for (ResolveInfo r : pm.queryIntentServices(new Intent(DreamService.SERVICE_INTERFACE), 0)) {
@@ -71,7 +76,10 @@ final class ScreenSaver {
         return out;
     }
 
-    /** The next screen saver after the current one; saves it and turns screen savers on. */
+    /**
+     * The next screen saver after the current one; saves it and turns screen savers on. Picking
+     * Globe starts downloading its maps, so the first run usually has them.
+     */
     static void next(Context ctx) {
         List<ComponentName> all = choices(ctx);
         int i = all.indexOf(current(ctx));
@@ -81,13 +89,20 @@ final class ScreenSaver {
             Settings.Secure.putInt(ctx.getContentResolver(), ENABLED, 1);
         } catch (SecurityException ignored) { // the permission was taken away meanwhile
         }
+        if (pick.equals(globe(ctx)) && !GlobeFeeds.mapsReady(ctx)) {
+            Context app = ctx.getApplicationContext();
+            Thread t = new Thread(() -> GlobeFeeds.fetchMaps(app), "globe-maps");
+            t.setDaemon(true);
+            t.start();
+        }
     }
 
-    /** "Prayer time", "Live log", or the other screen saver's own name. */
+    /** "Prayer time", "Live log", "Globe", or the other screen saver's own name. */
     static String label(Context ctx, ComponentName c) {
         if (c == null) return "None";
         if (c.equals(prayer(ctx))) return "Prayer time";
         if (c.equals(log(ctx))) return "Live log";
+        if (c.equals(globe(ctx))) return "Globe";
         try {
             return String.valueOf(ctx.getPackageManager().getServiceInfo(c, 0).loadLabel(ctx.getPackageManager()));
         } catch (PackageManager.NameNotFoundException e) {

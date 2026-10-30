@@ -24,7 +24,7 @@ import java.util.Locale;
 final class Wallpapers {
     static final String NONE = "none", CUSTOM = "custom", FILE = "file:", BING = "bing",
             DEFAULT = "perseids"; // Stargazer, the first in the list
-    private static final String UA = "TvHome/1.0 (Android TV home launcher)";
+    static final String UA = "TvHome/1.0 (Android TV home launcher)";
     private static final String COMMONS = "https://thumb.wikimedia.org/wikipedia/commons/thumb/";
 
     static final class Photo {
@@ -134,11 +134,20 @@ final class Wallpapers {
             String n = f.getName();
             if (photo(n.endsWith(".jpg") ? n.substring(0, n.length() - 4) : "") == null) f.delete();
         }
+        return download(p.url, out);
+    }
+
+    /**
+     * Downloads a picture to {@code out} (through a .tmp file, so a cut-off download never looks
+     * finished). Also the Globe screen saver's maps. Blocking: call off the main thread.
+     */
+    static boolean download(String url, File out) {
+        File dir = out.getParentFile();
         if (dir != null && !dir.isDirectory() && !dir.mkdirs()) return false;
         File tmp = new File(out.getPath() + ".tmp");
         HttpURLConnection c = null;
         try {
-            c = (HttpURLConnection) new URL(p.url).openConnection();
+            c = (HttpURLConnection) new URL(url).openConnection();
             c.setConnectTimeout(20_000);
             c.setReadTimeout(20_000);
             c.setRequestProperty("User-Agent", UA);
@@ -150,7 +159,7 @@ final class Wallpapers {
             }
             return tmp.renameTo(out);
         } catch (Exception e) {
-            android.util.Log.w("TvHome", "wallpaper " + id + " download failed", e);
+            android.util.Log.w("TvHome", "download failed: " + url, e);
             return false;
         } finally {
             if (c != null) c.disconnect();

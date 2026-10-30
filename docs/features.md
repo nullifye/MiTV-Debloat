@@ -18,7 +18,7 @@ Every feature in detail: what it shows, how to use it, and how it gets its data.
   - Home while already home jumps back to the dock.
 - **Focus memory:** the last focused tile is remembered, even if the TV kills the launcher.
 - **Any screen size:** the layout is designed for 960 × 540 dp (1920 × 1080 at density 320). On other TVs the launcher picks the density that keeps those proportions, so a 720p box or a denser screen shows the same layout scaled to fit, not shrunk or overlapping (`UiScale.java`).
-- **Resource use:** about 45–75 MB of memory (see the benchmark). There is no blur, video or network polling; the clock updates from the system's minute tick.
+- **Resource use:** about 45–75 MB of memory (see the benchmark). There is no blur, video or network polling; the clock updates from the system's minute tick. (The Globe screen saver fetches its live data only while it's on screen.)
 - **New apps:** they appear automatically; the grid lists your most used apps first, then the rest A–Z.
 
 ## Date, Hijri date and prayer times
@@ -69,13 +69,14 @@ A thin bar over every other app: **network speed** (`↓ 1.2 Mb  ↑ 34 Kb`), **
 - **Cost:** it ticks once a second only while it's showing. On the home screen, with the screen off or switched off, nothing runs.
 - It can't be focused or touched, so it never takes a key press from the app underneath.
 
-## Screen savers: Prayer time and Live log
+## Screen savers: Prayer time, Live log and Globe
 
-Two screen savers, both on black and drifting so nothing burns in. Everything about them is in TV Home's **Settings → Screen saver** (under Prayer times):
+Three screen savers, all on black and moving so nothing burns in. Everything about them is in TV Home's **Settings → Screen saver** (under Prayer times):
 
 - **Screen saver:** on or off. Off means the TV never starts one.
-- **Show:** OK cycles Prayer time → Live log → every other screen saver on the TV (A–Z); the row shows the one in use.
-- **Start now:** a preview of the chosen one; any key ends it. It works even with the screen saver off: it's switched on just for the preview and back off when you return.
+- **Show:** OK cycles Prayer time → Live log → Globe → every other screen saver on the TV (A–Z); the row shows the one in use.
+- **Start now:** a preview of the chosen one; any key ends it (on the Globe, any key but the arrows). It works even with the screen saver off: it's switched on just for the preview and back off when you return.
+- **With Globe chosen:** a switch for each of its layers, listed under [Globe](#globe) below.
 
 Some TVs, like this Mi TV, can't open their screen-saver page from another app, so TV Home sets these itself. That needs `WRITE_SECURE_SETTINGS`, granted by the setup app and `build-and-install.sh`. Without it, the page offers **Choose a screen saver** (opens the TV's Settings) and **Start now**. The TV's own Settings → Device Preferences → Screen saver still works too.
 
@@ -85,7 +86,43 @@ Some TVs, like this Mi TV, can't open their screen-saver page from another app, 
   - It reads the log like the bell's Play Store updates: with `READ_LOGS` below Android 13, else over the launcher's own ADB connection while USB debugging is on.
   - Everything in the log appears on screen, which can include Wi-Fi names or account names.
 - **Against burn-in:** nothing is white, the screen is dimmed, and the picture keeps moving even when nothing changes.
-- Any key wakes the TV.
+- Any key wakes the TV (on the Globe, any key but the arrows).
+
+### Globe
+
+<img src="screensaver-globe.jpg" width="100%" alt="Globe screen saver: the Earth with day and night, the prayer lines, Makkah and your zone, live map edits and earthquakes, the space stations and Hubble, a legend and the latest edit and earthquake">
+
+The Earth as it really sits in space right now, filling 90 % of the screen's height, with what's happening on it live.
+
+- **True to the moment:** the Earth is turned to its real rotation (sidereal time), its axis tilted 23.44° against its orbit (towards the sun in June, away in December), ecliptic north up, and lit by the sun where it really stands. The viewpoint circles it once every 2 minutes, westward, so the land passes west to east. It starts facing your prayer zone.
+- **The maps:** NASA's Earth by day (Blue Marble) and at night (city lights), 1920 × 960, downloaded once from Wikimedia Commons (about 0.5 MB). Until they're in (first run, or offline), the Prayer time picture shows instead and the globe takes over once they arrive.
+- **The remote:** the arrows turn it. Left and right go round it, up and down tilt it (up to 70°) to see more of the north or south. A press moves it about 10°, and holding keeps it going. Ten seconds after the last arrow it turns on its own again and levels out. Any other key ends the screen saver; it ends on the key's release, so the key never reaches the app underneath. A hint in a top corner says so for the first 8 seconds.
+- **The text:** a small clock in a top corner; under it in that bottom corner the legend (each layer's line, dot or icon, with live counts: "52 map edits a minute", "35 earthquakes today"); in the other bottom corner the latest map edit (green dot, how long ago, its comment in quotes), the latest earthquake (orange ring, how long ago, magnitude and place) and the credits. The two sides swap every minute.
+- **Against burn-in:** the globe slides to a new offset (up to 24 dp) every minute, the text swaps sides, the screen is dimmed and nothing is white (the brightest, the sun glint, stays near 65 %).
+- **What it costs:** about 12 % of one CPU core on the Mi TV (about 3 % of its four), about 19 % with Wind on. It's drawn with OpenGL ES 2.0, which every Android TV has: one square around the globe whose shader turns each pixel into a spot on the sphere, so there's no 3D model.
+
+Each layer has its own switch (Settings → Screen saver, with Globe chosen). Nothing is fetched for a layer that's off, and everything is fetched only while the Globe runs, then kept in the app's files for offline use.
+
+| Switch | What it shows | From | Fetched | Starts |
+|---|---|---|---|---|
+| Prayer lines | Where it's Maghrib right now (amber: the sun at −0.833°, on the side where it's setting) and Fajr (teal: −18°, where it's rising; JAKIM's Subuh times put the sun about 18° down) | Worked out on the TV | – | On |
+| Makkah and qibla | A Kaaba icon on Makkah and a dotted great-circle arc to it from your zone | – | – | On |
+| Your zone | A person icon on your prayer zone's main town (Settings → Prayer times → Zone) | – | – | On |
+| City lights | The night side's lights | NASA | Once | On |
+| Sun glint | The sun's reflection on the sea, where it would mirror towards you; none on land, ice or cloud | Worked out on the TV | – | On |
+| Sunlit rim | The atmosphere's edge, brighter and a little warm on the sun's side | Worked out on the TV | – | On |
+| Snow and sea ice | A soft white where there's snow or sea ice now (2–3 days behind) | NASA GIBS: SMAP snow, GHRSST sea ice | Every 12 h, ~100 KB | On |
+| Clouds | Clouds by day; at night they hide the city lights | [Live Cloud Maps](https://clouds.matteason.co.uk), from EUMETSAT's satellites | Every 3 h, ~390 KB | Off |
+| Wind | 900 drifting streaks, faster and brighter where the wind is stronger (10 m above the ground) | NOAA GFS, 1°, the forecast step nearest to now | Every 3 h, ~160 KB | Off |
+| Aurora | A green glow on the night side where it's forecast | NOAA SWPC OVATION | Every 15 min, ~150 KB | On |
+| Map edits | A green dot for each OpenStreetMap edit saved in the last minute, appearing through the minute and fading over 3 minutes | OpenStreetMap minutely changesets | Every minute | On |
+| Earthquakes | Orange rings for the past day's M2.5+ quakes, sized by magnitude (7 dp at M2.5 to 30 dp at about M7); the last hour's pulse | USGS | Every 5 min | On |
+| ISS, Tiangong, Hubble | Each with its icon and its path over the last 10 minutes | CelesTrak's orbits; positions worked out on the TV | Every 12 h | On |
+| Legend | The key, the latest edit and the latest earthquake | – | – | On |
+
+- **Satellites:** CelesTrak publishes each satellite's orbit (two-line elements); `Orbit.java` works out where it is with SGP4, the model those are made for. Tested against the reference implementation: within 10 m for the ISS and Tiangong.
+- **Wind:** NOAA sends GFS as GRIB2; `Grib.java` reads it (the complex packing NOMADS uses). Its values matched Open-Meteo's GFS within 0.2 m/s. If the newest run isn't out yet, it takes the one before.
+- **Credits** (shown on screen too): Earth, snow and ice: NASA · Clouds: contains modified EUMETSAT data · Aurora and wind: NOAA · Map edits © OpenStreetMap contributors (ODbL) · Earthquakes: USGS · Orbits: CelesTrak.
 
 ## Now Playing
 
@@ -120,7 +157,7 @@ The gear at the end of the top bar opens the launcher's Settings: categories on 
 |---|---|
 | Home screen | Clock Auto / 12-hour / 24-hour, apps per row (5, 6 or 7: the dock and the app list), System card, Now Playing card, wallpaper dim (Off/Low/Medium/High), wallpaper (Bing daily photo, seven built-in photos, your pictures or none). A hidden card's column closes up. |
 | Prayer times | Zone (picker), prayer card on/off, azan on/off, reminder before prayer (Off / 5 / 10 / 15 / 30 min), play azan now |
-| Screen saver | On/off, which one (OK cycles Prayer time, Live log and the TV's others), Start now (preview) |
+| Screen saver | On/off, which one (OK cycles Prayer time, Live log, Globe and the TV's others), Start now (preview); with Globe chosen, a switch for each of its 16 layers (clouds and wind start off) |
 | Most used | Most used card on/off, week starts on (Monday / Sunday), leave out (app picker) |
 | Notifications | TV Home updates, Play Store updates, new HDMI devices, Bluetooth, connection status, low memory (each on/off), low-memory level 80/85/90 % |
 | Info overlay | Show over apps on/off (off by default), what the left, centre and right show (network speed / uptime / clock / elapsed time / nothing), position (top / bottom), text size (small / medium / large), background on/off |
