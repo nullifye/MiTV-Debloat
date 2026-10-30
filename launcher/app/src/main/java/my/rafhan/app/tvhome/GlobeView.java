@@ -37,9 +37,10 @@ import javax.microedition.khronos.opengles.GL10;
  * qibla arc between them, and live dots (map
  * edits, earthquakes; GlobeFeeds) and satellites (the ISS, Tiangong and Hubble; Orbit).
  *
- * Drawn with OpenGL ES 2.0, which every Android TV has. There's no sphere mesh: one square
- * around the globe, and its fragment shader turns each pixel into a point on the sphere, then
- * into a latitude and longitude on the two maps. The dots are GL points in a second pass.
+ * Drawn with OpenGL ES 2.0, which every Android TV has: a sphere mesh whose vertices carry
+ * their spot on the two maps and the sun's height there (worked out at high precision, so it
+ * looks the same on GPUs with only medium precision per pixel), then the atmosphere on a square
+ * around it, then the dots as GL points.
  * About 30 frames a second. Text (clock, legend) is the Overlay view on top.
  *
  * Against burn-in, like the other screen savers: nothing white, the globe slides to a new
@@ -240,7 +241,87 @@ final class GlobeView extends GLSurfaceView {
         return new float[]{m[0], m[3], m[6], m[1], m[4], m[7], m[2], m[5], m[8]};
     }
 
-    private static final String GLOBE_VS =
+    // The globe is a sphere mesh (GlobeView.mesh). Everything that needs precision is worked out
+    // per vertex, where every GPU has highp: the spot on the maps, the sun's height, which side
+    // it's rising on. GPUs whose pixel shaders only have mediump (Mali-400/450: Mi Box 4) would
+    // band and blur if those were worked out per pixel. A uniform may not be used by both shaders
+    // (its precision would have to match, and can't on those GPUs), hence u_px and u_radius.
+    private static final String SPHERE_VS =
+            "attribute vec3 a_pos;\n" // the spot, Earth-fixed (Globe.vector)
+                    + "attribute vec2 a_uv;\n"  // and where it is on the maps
+                    + "uniform mat3 u_toView;\n"
+                    + "uniform vec2 u_center, u_screen;\n"
+                    + "uniform float u_radius;\n"
+                    + "uniform vec3 u_sun;\n"
+                    + "varying vec2 v_uv;\n"
+                    + "varying vec3 v_n;\n"      // facing (view space)
+                    + "varying float v_s, v_rise;\n" // sine of the sun's height; > 0 where it's rising
+                    + "void main() {\n"
+                    + "  vec3 n = u_toView * a_pos;\n"
+                    + "  v_uv = a_uv;\n"
+                    + "  v_n = n;\n"
+                    + "  v_s = dot(a_pos, u_sun);\n"
+                    + "  v_rise = u_sun.x * a_pos.z - u_sun.z * a_pos.x;\n" // Globe.sunRising
+                    + "  gl_Position = vec4((u_center + n.xy * u_radius) / u_screen * 2.0 - 1.0, -n.z * 0.5, 1.0);\n"
+                    + "}\n";
+
+    // Each pixel of the sphere: the day and night maps blended by how high the sun stands there,
+    // with snow and ice, clouds, aurora, the sun's glint, a hint of atmosphere towards the edge,
+    // and the prayer lines where that height equals Maghrib's (setting side) or Fajr's (rising).
+    private static final String SPHERE_FS =
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n"
+                    + "uniform sampler2D u_day, u_night, u_clouds, u_snow, u_aurora;\n"
+                    + "uniform vec3 u_sunView;\n"
+                    + "uniform float u_px, u_maghrib, u_fajr;\n"
+                    + "uniform float u_linesOn, u_lightsOn, u_cloudsOn, u_snowOn, u_auroraOn, u_glintOn, u_rimOn;\n"
+                    + "varying vec2 v_uv;\n"
+                    + "varying vec3 v_n;\n"
+                    + "varying float v_s, v_rise;\n"
+                    + "const vec3 MAGHRIB = vec3(0.80, 0.58, 0.25), FAJR = vec3(0.30, 0.66, 0.62);\n"
+                    + "float line(float s, float at, float px) {\n"
+                    + "  float d = abs(s - at);\n"
+                    + "  return (1.0 - smoothstep(0.9 * px, 2.2 * px, d)) * 0.85 + exp(-d / (5.0 * px)) * 0.18;\n"
+                    + "}\n"
+                    + "void main() {\n"
+                    // v_uv straight into the lookups, no maths on it: full precision even on Mali-400.
+                    + "  vec3 day = texture2D(u_day, v_uv).rgb, night = texture2D(u_night, v_uv).rgb;\n"
+                    + "  float s = v_s;\n"
+                    + "  float lit = smoothstep(-0.08, 0.10, s);\n"
+                    // Snow and sea ice whiten the land and sea; clouds go over both, and at night
+                    // they hide the city lights and show only faintly.
+                    // The cloud map reads ~0.3 for clear land, ~0.45 for clear sea, 0.8–0.95 for cloud.
+                    + "  float snow = texture2D(u_snow, v_uv).a * u_snowOn;\n"
+                    + "  float cloud = pow(smoothstep(0.45, 0.95, texture2D(u_clouds, v_uv).r), 1.5) * u_cloudsOn;\n"
+                    + "  vec3 dayC = mix(day, vec3(0.84, 0.87, 0.92), snow * 0.75);\n"
+                    + "  dayC = mix(dayC, vec3(0.90, 0.91, 0.93), cloud * 0.8) * (0.40 + 0.60 * smoothstep(-0.05, 0.55, s));\n"
+                    + "  vec3 nightC = night * vec3(1.05, 0.95, 0.80) * (1.0 - cloud * 0.7) * u_lightsOn + vec3(0.003, 0.006, 0.016)\n"
+                    + "      + vec3(0.020, 0.025, 0.035) * cloud;\n"
+                    + "  vec3 c = mix(nightC, dayC, lit);\n"
+                    // The aurora glows green where it's dark.
+                    + "  c += vec3(0.18, 0.80, 0.45) * smoothstep(0.03, 0.45, texture2D(u_aurora, v_uv).a) * (1.0 - lit) * 0.8 * u_auroraOn;\n"
+                    + "  c += vec3(0.30, 0.12, 0.03) * exp(-(s * s) / 0.0025) * 0.22;\n"
+                    // Sun glint: the sun mirrored in the sea, where the surface faces halfway between the
+                    // sun and the viewer. Water is told from the day map by its colour (blue over red and
+                    // green, and dark); none under cloud or ice. At most ~65 % bright: nothing white.
+                    // 1 − cos(angle to the halfway direction) as |n − h|² / 2: stays accurate at mediump.
+                    + "  float water = smoothstep(0.03, 0.10, day.b - max(day.r, day.g)) * (1.0 - smoothstep(0.30, 0.45, dot(day, vec3(0.3, 0.5, 0.2))));\n"
+                    + "  vec3 dh = v_n - normalize(u_sunView + vec3(0.0, 0.0, 1.0));\n"
+                    + "  float k = dot(dh, dh) * 0.5;\n"
+                    + "  float glint = (exp(-60.0 * k) * 0.38 + exp(-600.0 * k) * 0.32) * water * (1.0 - cloud) * (1.0 - snow) * smoothstep(0.0, 0.15, s);\n"
+                    + "  c += vec3(1.0, 0.90, 0.72) * glint * u_glintOn;\n"
+                    + "  float toSun = clamp(dot(normalize(v_n.xy + 1e-4), normalize(u_sunView.xy + 1e-4)) * 0.5 + 0.5, 0.0, 1.0);\n"
+                    + "  c = mix(c, vec3(0.30, 0.45, 0.75) * (0.25 + 0.75 * lit), pow(1.0 - clamp(v_n.z, 0.0, 1.0), 3.0) * (0.35 + 0.25 * pow(toSun, 3.0) * u_rimOn));\n"
+                    // Fajr only where the sun is coming up, Maghrib where it's going down (Globe.sunRising).
+                    + "  float morning = smoothstep(-0.03, 0.03, v_rise);\n"
+                    + "  c = mix(c, MAGHRIB, clamp(line(s, u_maghrib, u_px), 0.0, 1.0) * (1.0 - morning) * u_linesOn);\n"
+                    + "  c = mix(c, FAJR, clamp(line(s, u_fajr, u_px), 0.0, 1.0) * morning * u_linesOn);\n"
+                    + "  gl_FragColor = vec4(c * 0.85, 1.0);\n" // nothing at full white
+                    + "}\n";
+
+    // The atmosphere around the sphere, drawn over it on a square: a faint glow outside, brighter
+    // towards the sun (much more so with the sunlit rim on), and a soft sphere edge (premultiplied:
+    // nothing inside, the glow outside, a blend across the edge's pixel and a half).
+    private static final String GLOW_VS =
             "attribute vec2 a_corner;\n"
                     + "uniform vec2 u_center, u_screen;\n"
                     + "uniform float u_half;\n"
@@ -249,72 +330,25 @@ final class GlobeView extends GLSurfaceView {
                     + "  gl_Position = vec4(px / u_screen * 2.0 - 1.0, 0.0, 1.0);\n"
                     + "}\n";
 
-    // Each pixel: on the sphere (orthographic), rotated into Earth coordinates, looked up on the
-    // day and night maps, blended by how high the sun stands there; the prayer lines are where
-    // that sun altitude equals Maghrib's (setting side) or Fajr's (rising side). Outside the disc:
-    // a faint atmosphere.
-    private static final String GLOBE_FS =
+    private static final String GLOW_FS =
             "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n"
-                    + "uniform sampler2D u_day, u_night, u_clouds, u_snow, u_aurora;\n"
-                    + "uniform mat3 u_toEarth;\n"
-                    + "uniform vec3 u_sun, u_sunView;\n"
-                    // Not u_center: a uniform in both shaders must have the same precision, and on
-                    // GPUs without highp here (Mali-400/450: Mi Box 4) the link fails, leaving black.
+                    + "uniform vec3 u_sunView;\n"
                     + "uniform vec2 u_mid;\n"
-                    + "uniform float u_radius, u_maghrib, u_fajr;\n"
-                    + "uniform float u_linesOn, u_lightsOn, u_cloudsOn, u_snowOn, u_auroraOn, u_glintOn, u_rimOn;\n"
-                    + "const vec3 MAGHRIB = vec3(0.80, 0.58, 0.25), FAJR = vec3(0.30, 0.66, 0.62);\n"
-                    + "float line(float s, float at, float px) {\n"
-                    + "  float d = abs(s - at);\n"
-                    + "  return (1.0 - smoothstep(0.9 * px, 2.2 * px, d)) * 0.85 + exp(-d / (5.0 * px)) * 0.18;\n"
-                    + "}\n"
+                    + "uniform float u_radius, u_rimOn;\n"
                     + "void main() {\n"
                     + "  vec2 p = (gl_FragCoord.xy - u_mid) / u_radius;\n"
                     + "  float r = length(p), px = 1.0 / u_radius;\n"
-                    // The atmosphere: brighter on the side towards the sun; with the sunlit rim on, much
-                    // more so, and a little warm right where the sunlight comes in.
                     + "  float toSun = clamp(dot(p / max(r, 1e-4), normalize(u_sunView.xy + 1e-4)) * 0.5 + 0.5, 0.0, 1.0);\n"
-                    + "  float side = 0.35 + 0.65 * toSun;\n"
                     + "  float fade = 1.0 - smoothstep(1.0, 1.09, r);\n"
-                    + "  vec3 glow = vec3(0.16, 0.30, 0.58) * fade * 0.55 * side;\n"
+                    + "  vec3 glow = vec3(0.16, 0.30, 0.58) * fade * 0.55 * (0.35 + 0.65 * toSun);\n"
                     + "  float sunlit = pow(toSun, 3.0) * u_rimOn;\n"
                     + "  glow += (vec3(0.22, 0.32, 0.50) + vec3(0.20, 0.10, 0.00) * pow(toSun, 6.0)) * fade * fade * sunlit * 0.7;\n"
-                    + "  if (r >= 1.0) { gl_FragColor = vec4(glow, 1.0); return; }\n"
-                    + "  vec3 v = vec3(p, sqrt(1.0 - r * r));\n"
-                    + "  vec3 e = u_toEarth * v;\n"
-                    + "  float lat = asin(clamp(e.y, -1.0, 1.0)), lon = atan(e.x, e.z);\n"
-                    + "  vec2 uv = vec2(lon / 6.2831853 + 0.5, 0.5 - lat / 3.1415927);\n"
-                    + "  vec3 day = texture2D(u_day, uv).rgb, night = texture2D(u_night, uv).rgb;\n"
-                    + "  float s = dot(e, u_sun);\n"
-                    + "  float lit = smoothstep(-0.08, 0.10, s);\n"
-                    // Snow and sea ice whiten the land and sea; clouds go over both, and at night
-                    // they hide the city lights and show only faintly.
-                    // The cloud map reads ~0.3 for clear land, ~0.45 for clear sea, 0.8–0.95 for cloud.
-                    + "  float snow = texture2D(u_snow, uv).a * u_snowOn;\n"
-                    + "  float cloud = pow(smoothstep(0.45, 0.95, texture2D(u_clouds, uv).r), 1.5) * u_cloudsOn;\n"
-                    + "  vec3 dayC = mix(day, vec3(0.84, 0.87, 0.92), snow * 0.75);\n"
-                    + "  dayC = mix(dayC, vec3(0.90, 0.91, 0.93), cloud * 0.8) * (0.40 + 0.60 * smoothstep(-0.05, 0.55, s));\n"
-                    + "  vec3 nightC = night * vec3(1.05, 0.95, 0.80) * (1.0 - cloud * 0.7) * u_lightsOn + vec3(0.003, 0.006, 0.016)\n"
-                    + "      + vec3(0.020, 0.025, 0.035) * cloud;\n"
-                    + "  vec3 c = mix(nightC, dayC, lit);\n"
-                    // The aurora glows green where it's dark.
-                    + "  c += vec3(0.18, 0.80, 0.45) * smoothstep(0.03, 0.45, texture2D(u_aurora, uv).a) * (1.0 - lit) * 0.8 * u_auroraOn;\n"
-                    + "  c += vec3(0.30, 0.12, 0.03) * exp(-(s * s) / 0.0025) * 0.22;\n"
-                    // Sun glint: the sun mirrored in the sea, where the surface faces halfway between the
-                    // sun and the viewer. Water is told from the day map by its colour (blue over red and
-                    // green, and dark); none under cloud or ice. At most ~65 % bright: nothing white.
-                    + "  float water = smoothstep(0.03, 0.10, day.b - max(day.r, day.g)) * (1.0 - smoothstep(0.30, 0.45, dot(day, vec3(0.3, 0.5, 0.2))));\n"
-                    + "  float h = max(dot(v, normalize(u_sunView + vec3(0.0, 0.0, 1.0))), 0.0);\n"
-                    + "  float glint = (pow(h, 60.0) * 0.38 + pow(h, 600.0) * 0.32) * water * (1.0 - cloud) * (1.0 - snow) * smoothstep(0.0, 0.15, s);\n"
-                    + "  c += vec3(1.0, 0.90, 0.72) * glint * u_glintOn;\n"
-                    + "  c = mix(c, vec3(0.30, 0.45, 0.75) * (0.25 + 0.75 * lit), pow(1.0 - v.z, 3.0) * (0.35 + 0.25 * pow(toSun, 3.0) * u_rimOn));\n"
-                    // Fajr only where the sun is coming up, Maghrib where it's going down (Globe.sunRising).
-                    + "  float morning = smoothstep(-0.03, 0.03, u_sun.x * e.z - u_sun.z * e.x);\n"
-                    + "  c = mix(c, MAGHRIB, clamp(line(s, u_maghrib, px), 0.0, 1.0) * (1.0 - morning) * u_linesOn);\n"
-                    + "  c = mix(c, FAJR, clamp(line(s, u_fajr, px), 0.0, 1.0) * morning * u_linesOn);\n"
-                    + "  c *= 0.85;\n" // nothing at full white
-                    + "  gl_FragColor = vec4(mix(glow, c, clamp((1.0 - r) / (1.5 * px), 0.0, 1.0)), 1.0);\n"
+                    + "  float a = 1.0 - clamp((1.0 - r) / (1.5 * px), 0.0, 1.0);\n"
+                    + "  gl_FragColor = vec4(glow * a, a);\n"
                     + "}\n";
+
+    /** The sphere mesh: 144 × 72 steps of 2.5°, so its outline is round to a tenth of a pixel. */
+    private static final int MESH_LON = 144, MESH_LAT = 72;
 
     // Dots: a_pos = (x, y, z, kind) on the unit sphere, kind 0 a dot, 1 a ring, 2–4 the Kaaba,
     // ISS satellite, person, Tiangong satellite and Hubble icons (from the icon texture, eight cells wide). Hidden behind the globe, faded at its edge.
@@ -381,7 +415,7 @@ final class GlobeView extends GLSurfaceView {
     private static final float WIND_PACE = 0.4f;
 
     private final class Renderer implements GLSurfaceView.Renderer {
-        private int globe, dots, windProg, dayTex, nightTex, iconTex, cloudTex, snowTex, auroraTex, width, height, frames;
+        private int globe, glow, meshVbo, meshIbo, dots, windProg, dayTex, nightTex, iconTex, cloudTex, snowTex, auroraTex, width, height, frames;
         // Particles: where (radians), how old and how long they live (s), their trail (unit vectors, newest first).
         private final float[] pLat = new float[WIND_N], pLon = new float[WIND_N], pAge = new float[WIND_N],
                 pLife = new float[WIND_N], pTrail = new float[WIND_N * TRAIL * 3];
@@ -407,9 +441,11 @@ final class GlobeView extends GLSurfaceView {
 
         @Override
         public void onSurfaceCreated(GL10 unused, EGLConfig config) {
-            globe = program(GLOBE_VS, GLOBE_FS);
+            globe = program(SPHERE_VS, SPHERE_FS);
+            glow = program(GLOW_VS, GLOW_FS);
             dots = program(DOT_VS, DOT_FS);
-            if (globe == 0) { // this GPU can't draw it: let the screen saver show something else
+            mesh();
+            if (globe == 0 || glow == 0) { // this GPU can't draw it: let the screen saver show something else
                 String chip = GLES20.glGetString(GLES20.GL_RENDERER);
                 gpu = chip == null ? "" : chip;
                 android.util.Log.w("TvHome", "globe: can't draw on " + gpu);
@@ -446,7 +482,7 @@ final class GlobeView extends GLSurfaceView {
         @Override
         public void onDrawFrame(GL10 unused) {
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
-            if (globe == 0 || dayTex == 0 || nightTex == 0) return;
+            if (globe == 0 || glow == 0 || dayTex == 0 || nightTex == 0) return;
             if (frames++ % 300 == 0) weather(); // every 10 s or so: new clouds, snow, aurora?
             long up = SystemClock.uptimeMillis(), now = System.currentTimeMillis();
             float[] d = drift(up);
@@ -468,13 +504,13 @@ final class GlobeView extends GLSurfaceView {
             double[] sub = Globe.subsolar(now), sun = Globe.vector(sub[0], sub[1]);
             float[] sunView = mul(toView, sun);
 
+            // The sphere.
             GLES20.glUseProgram(globe);
             GLES20.glUniform2f(loc(globe, "u_center"), cx, cy);
-            GLES20.glUniform2f(loc(globe, "u_mid"), cx, cy);
             GLES20.glUniform2f(loc(globe, "u_screen"), width, height);
-            GLES20.glUniform1f(loc(globe, "u_half"), radius * 1.1f);
             GLES20.glUniform1f(loc(globe, "u_radius"), radius);
-            GLES20.glUniformMatrix3fv(loc(globe, "u_toEarth"), 1, false, toEarth, 0);
+            GLES20.glUniform1f(loc(globe, "u_px"), 1f / radius);
+            GLES20.glUniformMatrix3fv(loc(globe, "u_toView"), 1, false, toView, 0);
             GLES20.glUniform3f(loc(globe, "u_sun"), (float) sun[0], (float) sun[1], (float) sun[2]);
             GLES20.glUniform3f(loc(globe, "u_sunView"), sunView[0], sunView[1], sunView[2]);
             GLES20.glUniform1f(loc(globe, "u_maghrib"), (float) Math.sin(Math.toRadians(Globe.MAGHRIB_ALT)));
@@ -495,15 +531,40 @@ final class GlobeView extends GLSurfaceView {
             bind(GLES20.GL_TEXTURE3, cloudTex, "u_clouds", 3);
             bind(GLES20.GL_TEXTURE4, snowTex, "u_snow", 4);
             bind(GLES20.GL_TEXTURE5, auroraTex, "u_aurora", 5);
-            int corner = GLES20.glGetAttribLocation(globe, "a_corner");
+            int aPos = GLES20.glGetAttribLocation(globe, "a_pos"), aUv = GLES20.glGetAttribLocation(globe, "a_uv");
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, meshVbo);
+            GLES20.glVertexAttribPointer(aPos, 3, GLES20.GL_FLOAT, false, 20, 0);
+            GLES20.glVertexAttribPointer(aUv, 2, GLES20.GL_FLOAT, false, 20, 12);
+            GLES20.glEnableVertexAttribArray(aPos);
+            GLES20.glEnableVertexAttribArray(aUv);
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, meshIbo);
+            GLES20.glEnable(GLES20.GL_CULL_FACE); // the far side faces away: convex, so nothing else hides
+            GLES20.glCullFace(GLES20.GL_BACK);
+            GLES20.glFrontFace(GLES20.GL_CCW);
+            GLES20.glDrawElements(GLES20.GL_TRIANGLES, MESH_LON * MESH_LAT * 6, GLES20.GL_UNSIGNED_SHORT, 0);
+            GLES20.glDisable(GLES20.GL_CULL_FACE);
+            GLES20.glDisableVertexAttribArray(aPos);
+            GLES20.glDisableVertexAttribArray(aUv);
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0); // the other passes use arrays from memory
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0);
+
+            // The atmosphere and the sphere's soft edge.
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+            GLES20.glUseProgram(glow);
+            GLES20.glUniform2f(loc(glow, "u_center"), cx, cy);
+            GLES20.glUniform2f(loc(glow, "u_mid"), cx, cy);
+            GLES20.glUniform2f(loc(glow, "u_screen"), width, height);
+            GLES20.glUniform1f(loc(glow, "u_half"), radius * 1.1f);
+            GLES20.glUniform1f(loc(glow, "u_radius"), radius);
+            GLES20.glUniform3f(loc(glow, "u_sunView"), sunView[0], sunView[1], sunView[2]);
+            GLES20.glUniform1f(loc(glow, "u_rimOn"), on.rim ? 1 : 0);
+            int corner = GLES20.glGetAttribLocation(glow, "a_corner");
             corners.position(0);
             GLES20.glVertexAttribPointer(corner, 2, GLES20.GL_FLOAT, false, 0, corners);
             GLES20.glEnableVertexAttribArray(corner);
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4);
             GLES20.glDisableVertexAttribArray(corner);
-
-            GLES20.glEnable(GLES20.GL_BLEND);
-            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
             float[] u = feeds.windU, v = feeds.windV;
             if (on.wind && u != null && v != null && windProg != 0) wind(u, v, toView, toEarth, cx, cy, radius);
             else windStarted = false;
@@ -692,6 +753,54 @@ final class GlobeView extends GLSurfaceView {
             points.put((float) v[0]).put((float) v[1]).put((float) v[2]).put(kind)
                     .put(rgb[0]).put(rgb[1]).put(rgb[2]).put(alpha).put(size);
             count++;
+        }
+
+        /**
+         * The sphere, once into GPU buffers: (MESH_LON + 1) × (MESH_LAT + 1) points (the seam at
+         * ±180° twice, with u 0 and 1, so the maps don't wrap across a triangle), each its
+         * Earth-fixed position and its spot on the maps; two triangles a step, counter-clockwise
+         * seen from outside.
+         */
+        private void mesh() {
+            int cols = MESH_LON + 1;
+            float[] v = new float[cols * (MESH_LAT + 1) * 5];
+            int k = 0;
+            for (int j = 0; j <= MESH_LAT; j++) {
+                double lat = 90 - 180.0 * j / MESH_LAT;
+                for (int i = 0; i <= MESH_LON; i++) {
+                    double[] e = Globe.vector(lat, -180 + 360.0 * i / MESH_LON);
+                    v[k++] = (float) e[0];
+                    v[k++] = (float) e[1];
+                    v[k++] = (float) e[2];
+                    v[k++] = (float) i / MESH_LON;
+                    v[k++] = (float) j / MESH_LAT;
+                }
+            }
+            short[] idx = new short[MESH_LON * MESH_LAT * 6];
+            k = 0;
+            for (int j = 0; j < MESH_LAT; j++) {
+                for (int i = 0; i < MESH_LON; i++) {
+                    int a = j * cols + i, b = a + 1, c = a + cols, d = c + 1; // a b over c d
+                    idx[k++] = (short) a;
+                    idx[k++] = (short) c;
+                    idx[k++] = (short) b;
+                    idx[k++] = (short) b;
+                    idx[k++] = (short) c;
+                    idx[k++] = (short) d;
+                }
+            }
+            int[] ids = new int[2];
+            GLES20.glGenBuffers(2, ids, 0);
+            meshVbo = ids[0];
+            meshIbo = ids[1];
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, meshVbo);
+            GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, v.length * 4, floats(v), GLES20.GL_STATIC_DRAW);
+            java.nio.ShortBuffer ib = ByteBuffer.allocateDirect(idx.length * 2).order(ByteOrder.nativeOrder()).asShortBuffer();
+            ib.put(idx).position(0);
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, meshIbo);
+            GLES20.glBufferData(GLES20.GL_ELEMENT_ARRAY_BUFFER, idx.length * 2, ib, GLES20.GL_STATIC_DRAW);
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+            GLES20.glBindBuffer(GLES20.GL_ELEMENT_ARRAY_BUFFER, 0);
         }
 
         private void bind(int unit, int tex, String sampler, int index) {
