@@ -75,9 +75,9 @@
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Left cards: prayer times (top level with the system card), then most used apps. -->
+        <!-- Left cards: prayer times (top level with the system card), then weather. -->
         <LinearLayout
-            android:layout_width="390dp"
+            android:layout_width="401dp"
             android:layout_height="wrap_content"
             android:layout_gravity="top|start"
             android:layout_marginStart="64dp"
@@ -96,9 +96,9 @@
                 android:paddingEnd="12dp"
                 android:paddingBottom="12dp" />
 
-            <!-- Filled by UsagePanel. -->
+            <!-- Filled by WeatherPanel. -->
             <LinearLayout
-                android:id="@+id/usagePanel"
+                android:id="@+id/weatherPanel"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="10dp"
@@ -106,7 +106,7 @@
                 android:orientation="vertical"
                 android:paddingStart="14dp"
                 android:paddingTop="11dp"
-                android:paddingEnd="4dp"
+                android:paddingEnd="2dp"
                 android:paddingBottom="12dp" />
         </LinearLayout>
 
@@ -174,6 +174,22 @@
             android:paddingEnd="12dp"
             android:paddingBottom="10dp"
             android:visibility="gone" />
+
+        <!-- Most used card, filled by UsagePanel. In Now Playing's spot under the system card
+             (MainActivity.placeNowPlaying), and hidden while Now Playing shows. -->
+        <LinearLayout
+            android:id="@+id/usagePanel"
+            android:layout_width="410dp"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top|end"
+            android:layout_marginEnd="64dp"
+            android:layout_marginTop="240dp"
+            android:background="@drawable/sys_bg"
+            android:orientation="vertical"
+            android:paddingStart="14dp"
+            android:paddingTop="11dp"
+            android:paddingEnd="4dp"
+            android:paddingBottom="12dp" />
 
         <TextView
             android:id="@+id/hero"

@@ -43,17 +43,17 @@ final class SettingsScreen {
     private static final int TEXT = 0xFFFFFFFF, DIM = 0x8CFFFFFF, GREEN = 0xFF34C759, AMBER = 0xFFFFB340;
     private static final int TOGGLE = 0, CHOICE = 1, PICKER = 2, ACTION = 3, INFO = 4, CHECK = 5;
 
-    private static final int HOME = 0, PRAYER = 1, SAVER = 2, USAGE = 3, ALERTS = 4, STATUS = 5, REMOTE = 6,
-            HIDDEN = 7; // About: 8
-    private static final String[] CATS = {"Home screen", "Prayer times", "Screen saver", "Most used", "Notifications",
-            "Info overlay", "Phone remote", "Running apps", "About"};
+    private static final int HOME = 0, PRAYER = 1, WEATHER = 2, USAGE = 3, SAVER = 4, ALERTS = 5, STATUS = 6,
+            REMOTE = 7, HIDDEN = 8; // About: 9
+    private static final String[] CATS = {"Home screen", "Prayer times", "Weather", "Most used", "Screen saver",
+            "Notifications", "Info overlay", "Phone remote", "Running apps", "About"};
     private static final String[] CAT_SUBS = {"Cards, clock and wallpaper", "Zone and card",
-            "What the TV shows when idle", "Your top apps this week", "What the bell tells you",
+            "Forecast and air quality", "Your top apps this week", "What the TV shows when idle", "What the bell tells you",
             "Speed, uptime and clock over apps", "Control the TV from your phone", "Apps hidden from the list",
             "Version and TV settings"};
-    private static final int[] CAT_ICONS = {R.drawable.ic_tv, R.drawable.ic_crescent, R.drawable.ic_screensaver,
-            R.drawable.ic_chart, R.drawable.ic_bell, R.drawable.ic_status_bar, R.drawable.ic_phone, R.drawable.ic_ram,
-            R.drawable.ic_info};
+    private static final int[] CAT_ICONS = {R.drawable.ic_tv, R.drawable.ic_crescent, R.drawable.ic_storm,
+            R.drawable.ic_chart, R.drawable.ic_screensaver, R.drawable.ic_bell, R.drawable.ic_status_bar,
+            R.drawable.ic_phone, R.drawable.ic_ram, R.drawable.ic_info};
     private static final String LIVE_TV = "com.mediatek.wwtv.tvcenter";
 
     interface Host {
@@ -366,6 +366,7 @@ final class SettingsScreen {
         switch (c) {
             case HOME: homeRows(out); break;
             case PRAYER: prayerRows(out); break;
+            case WEATHER: weatherRows(out); break;
             case SAVER: saverRows(out); break;
             case USAGE: usageRows(out); break;
             case ALERTS: alertRows(out); break;
@@ -456,6 +457,29 @@ final class SettingsScreen {
         test.sub = "Hear it and check the volume";
         test.action = LauncherSettings::playAzanNow;
         out.add(test);
+    }
+
+    /** The Weather card: on/off, the MET place (Auto: the prayer zone's town) and the APIMS station. */
+    private void weatherRows(List<Row> out) {
+        out.add(toggle(LauncherSettings.SHOW_WEATHER, "Weather card",
+                "Today's forecast and air quality on the home screen"));
+        List<Weather.Place> places = WeatherPanel.places(ctx);
+        Weather.Place place = WeatherPanel.place(ctx, places);
+        boolean auto = LauncherSettings.weatherPlace(ctx).isEmpty();
+        Row loc = new Row(PICKER, "Location");
+        loc.sub = place != null ? "MET Malaysia's forecast for this " + place.type().toLowerCase(Locale.ROOT)
+                : "MET Malaysia's forecast. Auto: your prayer zone's town";
+        loc.value = () -> place == null ? "Auto" : auto ? "Auto (" + place.name + ")" : place.name;
+        loc.action = this::openPlacePicker;
+        out.add(loc);
+        List<Weather.Station> stations = WeatherPanel.stations(ctx);
+        Weather.Station station = WeatherPanel.station(ctx, stations);
+        boolean nearest = LauncherSettings.weatherStation(ctx).isEmpty();
+        Row st = new Row(PICKER, "Air quality station");
+        st.sub = "APIMS reading there; Copernicus for the same spot";
+        st.value = () -> station == null ? "Nearest" : nearest ? "Nearest (" + station.place + ")" : station.place;
+        st.action = this::openStationPicker;
+        out.add(st);
     }
 
     private void usageRows(List<Row> out) {
@@ -631,6 +655,123 @@ final class SettingsScreen {
             items.add(r);
         }
         openPicker("Zone", items, focus);
+    }
+
+    /** Every MET forecast location, with Auto (the prayer zone's town) first. */
+    private void openPlacePicker() {
+        if (WeatherPanel.places(ctx).isEmpty()) loadingPicker("Location", this::openPlacePicker);
+        else preparing("Location", this::showPlaces);
+    }
+
+    /** The 441 rows take a moment to build: shown after "Loading…" (preparing). */
+    private void showPlaces() {
+        List<Weather.Place> places = WeatherPanel.places(ctx);
+        String chosen = LauncherSettings.weatherPlace(ctx);
+        Weather.Place auto = WeatherPanel.autoPlace(ctx, places);
+        List<Row> items = new ArrayList<>();
+        Row a = new Row(CHECK, "Auto");
+        a.sub = "Your prayer zone's town" + (auto != null ? ": " + auto.name : "");
+        a.checked = chosen.isEmpty();
+        a.action = () -> {
+            LauncherSettings.setWeatherPlace(ctx, "");
+            closePicker();
+        };
+        items.add(a);
+        int focus = 0;
+        for (Weather.Place p : places) {
+            Row r = new Row(CHECK, p.name);
+            r.sub = p.type() + " · " + p.id;
+            r.checked = p.id.equals(chosen);
+            if (r.checked) focus = items.size();
+            r.action = () -> {
+                LauncherSettings.setWeatherPlace(ctx, p.id);
+                closePicker();
+            };
+            items.add(r);
+        }
+        openPicker("Location", items, focus);
+    }
+
+    /** Every APIMS station by state, with Nearest (to the prayer zone's town) first. */
+    private void openStationPicker() {
+        if (WeatherPanel.stations(ctx).isEmpty()) loadingPicker("Air quality station", this::openStationPicker);
+        else preparing("Air quality station", this::showStations);
+    }
+
+    private void showStations() {
+        List<Weather.Station> stations = WeatherPanel.stations(ctx);
+        String chosen = LauncherSettings.weatherStation(ctx);
+        Weather.Station near = WeatherPanel.nearestStation(ctx, stations);
+        List<Row> items = new ArrayList<>();
+        Row n = new Row(CHECK, "Nearest");
+        n.sub = "Closest to your prayer zone's town" + (near != null ? ": " + near.place : "");
+        n.checked = chosen.isEmpty();
+        n.action = () -> {
+            LauncherSettings.setWeatherStation(ctx, "");
+            closePicker();
+        };
+        items.add(n);
+        int focus = 0;
+        for (Weather.Station s : stations) {
+            Row r = new Row(CHECK, s.place);
+            r.sub = s.state + " · " + s.id + (s.api >= 0 ? " · API " + s.api : "");
+            r.checked = s.id.equals(chosen);
+            if (r.checked) focus = items.size();
+            r.action = () -> {
+                LauncherSettings.setWeatherStation(ctx, s.id);
+                closePicker();
+            };
+            items.add(r);
+        }
+        openPicker("Air quality station", items, focus);
+    }
+
+    /**
+     * A long list: "Loading…" at once, so OK answers straight away, then the list itself once the
+     * highlight has settled on it (building hundreds of rows holds the screen's thread for a
+     * moment, and a highlight still on its way would freeze half-way meanwhile).
+     */
+    private void preparing(String title, Runnable show) {
+        Row r = new Row(INFO, "Loading…");
+        r.sub = "Getting the list ready";
+        List<Row> items = new ArrayList<>();
+        items.add(r);
+        openPicker(title, items, 0);
+        main.postDelayed(() -> {
+            if (picker == null || !title.equals(pickerTitle) || picker.size() != 1) return; // left meanwhile
+            int from = pickerFrom;
+            picker = null;
+            row = from;
+            show.run(); // opens the real list, still returning to the same row
+        }, 350); // after the highlight has glided onto "Loading…": the build holds the screen's thread
+    }
+
+    /**
+     * A list that isn't downloaded yet: "Loading…" while it is, then the list (or a line saying it
+     * couldn't be fetched). Leaving meanwhile is fine: the result is kept for next time.
+     */
+    private void loadingPicker(String title, Runnable reopen) {
+        Row r = new Row(INFO, "Loading…");
+        r.sub = "Fetching the list from the internet";
+        List<Row> items = new ArrayList<>();
+        items.add(r);
+        openPicker(title, items, 0);
+        WeatherPanel.loadLists(ctx, () -> {
+            if (picker == null || !title.equals(pickerTitle)) return; // left meanwhile
+            int from = pickerFrom;
+            boolean got = title.equals("Location") ? !WeatherPanel.places(ctx).isEmpty()
+                    : !WeatherPanel.stations(ctx).isEmpty();
+            if (got) {
+                picker = null;
+                row = from;
+                reopen.run(); // opens the real list, still returning to the same row
+            } else {
+                Row fail = new Row(INFO, "Couldn't load the list");
+                fail.sub = "Check the internet connection and try again";
+                picker.set(0, fail);
+                render();
+            }
+        });
     }
 
     private static final String WALLPAPER_TITLE = "Wallpaper";
@@ -840,7 +981,7 @@ final class SettingsScreen {
         crumb.setText("/  " + CATS[cat] + (picker != null ? "  /  " + pickerTitle : ""));
         paneTitle.setText(picker != null ? pickerTitle : CATS[cat]);
         paneSub.setText(inWallpaperList() ? "Move to preview  ·  OK to set"
-                : picker != null ? (picker.size() + " items") : CAT_SUBS[cat]);
+                : picker != null ? count(picker) : CAT_SUBS[cat]);
         renderRows();
     }
 
@@ -860,6 +1001,12 @@ final class SettingsScreen {
         if (col == 0) scroll.scrollTo(0, 0);
         else scrollToFocus();
         host.onFocusMoved();
+    }
+
+    /** "441 items", "1 item"; nothing while a list only says it's loading (or couldn't). */
+    private static String count(List<Row> list) {
+        if (list.size() == 1 && list.get(0).type == INFO) return "";
+        return list.size() == 1 ? "1 item" : list.size() + " items";
     }
 
     private void scrollToFocus() {

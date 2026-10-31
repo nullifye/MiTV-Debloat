@@ -74,6 +74,9 @@ final class RemoteSettings {
                         "A banner over any app, without sound, while the TV is on",
                         new int[] {0, 5, 10, 15, 30}, new String[] {"Off", "5 min", "10 min", "15 min", "30 min"}),
                 row("action", LauncherSettings.AZAN_TEST, "Play azan now", "Hear it on the TV and check the volume")));
+        cats.put(category("Weather", "Forecast and air quality",
+                toggle(LauncherSettings.SHOW_WEATHER, "Weather card",
+                        "Today's forecast and air quality on the home screen")));
         cats.put(category("Most used", "Your top apps this week",
                 toggle(LauncherSettings.SHOW_USAGE, "Most used card", "Your top 5 apps this week on the home screen"),
                 choice(LauncherSettings.WEEK_START, "Week starts on", "Counts from this day up to today",

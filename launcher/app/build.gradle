@@ -20,8 +20,8 @@ android {
         applicationId 'my.rafhan.app.tvhome'
         minSdk 26          // Android 8.0: the overlays, fonts and java.time need it; the Mi TV runs 10, the Mi Box 9
         targetSdk 36       // some Google TV 14 sets refuse old targets at install
-        versionCode 19
-        versionName '1.12.1'
+        versionCode 20
+        versionName '1.13.0'
     }
 
     signingConfigs {
@@ -68,4 +68,6 @@ dependencies {
     implementation 'dev.mobile:dadb:1.2.10'
 
     testImplementation 'junit:junit:4.13.2'
+    // Android's own org.json is only a stub in local unit tests; the real one (same API) for WeatherTest.
+    testImplementation 'org.json:json:20260814'
 }

@@ -79,7 +79,11 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
     private static final int TOP = 0, DOCK = 1, GRID = 2, MENU = 3, NOW = 4, UP = 5, SETTINGS = 6;
     private static final float NOW_SCALE = 1.12f;
-    private static final int RIGHT_CARD_W = 412; // System and Now Playing cards, dp
+    /**
+     * The card columns' width, dp: left (Prayer, Weather) and right (System, Most used, Now
+     * Playing) the same, 30 dp apart, from 64 dp in to under the Settings button (896 dp).
+     */
+    private static final int RIGHT_CARD_W = 401; // System and Now Playing cards, dp
     // Apps per row (Settings → Home screen): the dock and each app-list row, 5 to 7.
     private static final float TILE_SCALE = 1.1f, PILL_SCALE = 1.06f;
     // dp
@@ -126,6 +130,7 @@ public class MainActivity extends Activity {
     private FrameLayout upPage;
     private PrayerPanel prayer;
     private UsagePanel usage;
+    private WeatherPanel weather;
     /** This week (the Most used card) and all time (the grid order). */
     private UsageScores.Scores usageScores = UsageScores.Scores.NONE;
     private final GradientDrawable glowDrawable = new GradientDrawable();
@@ -284,13 +289,15 @@ public class MainActivity extends Activity {
                 findViewById(R.id.pillSettings)};
         bellBadge = findViewById(R.id.bellBadge);
         bellBadge.setTypeface(Fonts.outfit(this, 600));
+        LinearLayout weatherCard = findViewById(R.id.weatherPanel);
         homeViews = new View[] {findViewById(R.id.clockBlock), findViewById(R.id.pills), findViewById(R.id.dockBand),
                 findViewById(R.id.sysPanel), findViewById(R.id.prayerPanel), findViewById(R.id.usagePanel),
-                findViewById(R.id.peekFade), findViewById(R.id.nowPlaying)};
+                weatherCard, findViewById(R.id.peekFade), findViewById(R.id.nowPlaying)};
         system = new SystemPanel(this, findViewById(R.id.sysPanel), worker);
         nowPlaying = new NowPlayingPanel(this, findViewById(R.id.nowPlaying), worker, shown -> {
             // Playback ended while its buttons had focus: back to the dock.
             if (!shown && section == NOW && !dock.isEmpty()) moveFocus(DOCK, dockIdx);
+            showUsage(); // Now Playing takes the Most used card's spot while something plays
         });
         prayer = new PrayerPanel(this, findViewById(R.id.prayerPanel), hijri, worker);
         upPage = findViewById(R.id.upPage);
@@ -302,6 +309,7 @@ public class MainActivity extends Activity {
             up.setFocused(upIdx);
         });
         usage = new UsagePanel(this, findViewById(R.id.usagePanel));
+        weather = new WeatherPanel(this, weatherCard);
         alignSystemPanel();
         centreDatesOnClock();
 
@@ -487,13 +495,21 @@ public class MainActivity extends Activity {
                 card.post(() -> card.setLayoutParams(lp));
             }
         });
-        // Now Playing sits under the system card, same width and edges.
+        // Now Playing and Most used sit under the system card, same width and edges.
         card.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> placeNowPlaying());
     }
 
-    /** Now Playing: under the system card, same width and edges; in its place when it's off. */
+    /**
+     * Now Playing and the Most used card (they share one spot): under the system card, same width
+     * and edges; in its place when it's off.
+     */
     private void placeNowPlaying() {
-        View card = findViewById(R.id.sysPanel), np = findViewById(R.id.nowPlaying);
+        View card = findViewById(R.id.sysPanel);
+        underSystem(card, findViewById(R.id.nowPlaying));
+        underSystem(card, findViewById(R.id.usagePanel));
+    }
+
+    private void underSystem(View card, View np) {
         ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) np.getLayoutParams();
         ViewGroup.MarginLayoutParams sp = (ViewGroup.MarginLayoutParams) card.getLayoutParams();
         boolean below = card.getVisibility() != View.GONE;
@@ -1482,6 +1498,11 @@ public class MainActivity extends Activity {
         switch (key) {
             case LauncherSettings.ZONE:
                 prayer.setZone(LauncherSettings.zone(this));
+                weather.settingsChanged(); // Auto place and Nearest station follow the zone
+                break;
+            case LauncherSettings.WEATHER_PLACE:
+            case LauncherSettings.WEATHER_STATION:
+                weather.settingsChanged();
                 break;
             case LauncherSettings.CLOCK:
                 updateClock(); // also re-renders the prayer times
@@ -1491,6 +1512,10 @@ public class MainActivity extends Activity {
             case LauncherSettings.SHOW_SYSTEM:
             case LauncherSettings.SHOW_NOW:
                 applyCardSettings();
+                break;
+            case LauncherSettings.SHOW_WEATHER:
+                applyCardSettings();
+                weather.settingsChanged(); // back on: show and fetch now, not at the next minute
                 break;
             case LauncherSettings.WALL_DIM:
                 applyWallpaperDim();
@@ -1511,22 +1536,30 @@ public class MainActivity extends Activity {
     };
 
     /**
-     * Shows or hides the home cards. Each column stacks what's left from the top: Most used moves
-     * up when the prayer card is off, Now Playing moves up when the System card is off.
+     * Shows or hides the home cards. Each column stacks what's left from the top: Weather moves
+     * up when the prayer card is off; Now Playing and Most used (one spot, Now Playing while
+     * something plays) move up when the System card is off.
      */
     private void applyCardSettings() {
-        View prayerCard = findViewById(R.id.prayerPanel), usageCard = findViewById(R.id.usagePanel);
+        View prayerCard = findViewById(R.id.prayerPanel), weatherCard = findViewById(R.id.weatherPanel);
         boolean showPrayer = LauncherSettings.flag(this, LauncherSettings.SHOW_PRAYER);
         prayerCard.setVisibility(showPrayer ? View.VISIBLE : View.GONE);
-        usageCard.setVisibility(LauncherSettings.flag(this, LauncherSettings.SHOW_USAGE) ? View.VISIBLE : View.GONE);
-        ViewGroup.MarginLayoutParams ulp = (ViewGroup.MarginLayoutParams) usageCard.getLayoutParams();
-        ulp.topMargin = showPrayer ? px(10) : 0;
-        usageCard.setLayoutParams(ulp);
+        weatherCard.setVisibility(LauncherSettings.flag(this, LauncherSettings.SHOW_WEATHER) ? View.VISIBLE : View.GONE);
+        ViewGroup.MarginLayoutParams wlp = (ViewGroup.MarginLayoutParams) weatherCard.getLayoutParams();
+        wlp.topMargin = showPrayer ? px(10) : 0;
+        weatherCard.setLayoutParams(wlp);
+        showUsage();
         findViewById(R.id.sysPanel).setVisibility(showSystem() ? View.VISIBLE : View.GONE);
         setSystemVisible(!onGridPage(section) && !onUpPage(section) && section != SETTINGS);
         if (!LauncherSettings.flag(this, LauncherSettings.SHOW_NOW)) nowPlaying.disable();
         else if (live) nowPlaying.start();
         placeNowPlaying();
+    }
+
+    /** The Most used card: switched on, and Now Playing isn't in its spot. */
+    private void showUsage() {
+        boolean on = LauncherSettings.flag(this, LauncherSettings.SHOW_USAGE) && !nowPlaying.isShown();
+        findViewById(R.id.usagePanel).setVisibility(on ? View.VISIBLE : View.GONE);
     }
 
     private boolean showSystem() {
@@ -1630,6 +1663,7 @@ public class MainActivity extends Activity {
         clock.setText(DateFormat.format(LauncherSettings.use24h(this) ? "HH:mm" : "h:mm", c));
         date.setText(DateFormat.format("EEEE, d MMMM yyyy", c));
         prayer.refresh();
+        weather.refresh();
         // After midnight, pick up the new Bing photo of the day even if left on the home screen.
         java.time.LocalDate day = java.time.LocalDate.now();
         if (!day.equals(lastWallpaperDay)) {
@@ -1656,6 +1690,7 @@ public class MainActivity extends Activity {
         pills[PILL_WIFI].setContentDescription(st.pillLabel());
         system.refreshNetwork();
         prayer.onNetworkAvailable();
+        weather.onNetworkAvailable();
         loadWallpaper(); // a built-in that couldn't download yet gets another try
     }
 

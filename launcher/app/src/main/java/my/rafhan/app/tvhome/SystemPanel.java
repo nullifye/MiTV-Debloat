@@ -70,6 +70,13 @@ final class SystemPanel {
 
         LinearLayout header = new LinearLayout(ctx);
         header.setGravity(Gravity.CENTER_VERTICAL);
+        // A small icon before the title, like the other cards' (the TV: this card is about it).
+        ImageView mark = new ImageView(ctx);
+        mark.setImageResource(R.drawable.ic_tv);
+        mark.setImageTintList(ColorStateList.valueOf(DIM));
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(px(12), px(12));
+        mlp.setMarginEnd(px(5));
+        header.addView(mark, mlp);
         TextView title = small("SYSTEM", DIM);
         header.addView(title);
         TextView device = small(Build.MODEL + " · Android " + Build.VERSION.RELEASE

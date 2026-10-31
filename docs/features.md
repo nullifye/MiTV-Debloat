@@ -130,7 +130,7 @@ Each layer has its own switch (Settings → Screen saver, with Globe chosen). No
 
 ## Now Playing
 
-Under the System card, whenever an app has a media session (RadioStream, Spotify, music apps):
+Under the System card, in the Most used card's place (which comes back when playback stops), whenever an app has a media session (RadioStream, Spotify, music apps):
 - **Shows:** cover art, title, artist, the app and its state (Playing / Paused).
 - **Progress:** a progress bar with time when the track has a length; **LIVE** for streams.
 - **Buttons:** **Play/Pause**, **Stop** and **Open app**. Press **Up** from the dock to reach them, Left/Right to move between them, Up again for the top bar.
@@ -159,19 +159,48 @@ The gear at the end of the top bar opens the launcher's Settings: categories on 
 
 | Category | Options |
 |---|---|
-| Home screen | Clock Auto / 12-hour / 24-hour, apps per row (5, 6 or 7: the dock and the app list), System card, Now Playing card, wallpaper dim (Off/Low/Medium/High), wallpaper (Bing daily photo, seven built-in photos, your pictures or none). A hidden card's column closes up. |
+| Home screen | Clock Auto / 12-hour / 24-hour, apps per row (5, 6 or 7: the dock and the app list), System card, Now Playing card (the Weather card is under Weather), wallpaper dim (Off/Low/Medium/High), wallpaper (Bing daily photo, seven built-in photos, your pictures or none). A hidden card's column closes up. |
 | Prayer times | Zone (picker), prayer card on/off, azan on/off, reminder before prayer (Off / 5 / 10 / 15 / 30 min), play azan now |
-| Screen saver | On/off, which one (OK cycles Prayer time, Live log, Globe and the TV's others), Start now (preview); with Globe chosen, a switch for each of its 16 layers (clouds and wind start off) |
+| Weather | Weather card on/off, location (Auto or any of MET Malaysia's 440 places), air quality station (Nearest or any of the 68 APIMS stations) |
 | Most used | Most used card on/off, week starts on (Monday / Sunday), leave out (app picker) |
+| Screen saver | On/off, which one (OK cycles Prayer time, Live log, Globe and the TV's others), Start now (preview); with Globe chosen, a switch for each of its 16 layers (clouds and wind start off) |
 | Notifications | TV Home updates, Play Store updates, new HDMI devices, Bluetooth, connection status, low memory (each on/off), low-memory level 80/85/90 % |
 | Info overlay | Show over apps on/off (off by default), what the left, centre and right show (network speed / uptime / clock / elapsed time / nothing), position (top / bottom), text size (small / medium / large), background on/off |
 | Phone remote | Remote on/off (the banner and bell keep working when it's off), its address, forget all paired phones (press OK twice), and each paired phone with when it was last used and its own Forget (OK twice) |
 | Running apps | Apps hidden from the running-apps screen; OK shows one again |
 | About | Version, install time, APK size, TV settings |
 
+## Weather
+
+Under the prayer card (its title has a ring sun, apart from the prayer card's solid one): today's weather and two air-quality readings for your place.
+
+```
+☀ WEATHER · KLANG                    ⚠ Thunderstorms warning until 20:00
+⛈ 24–32°C                    API 75 MODERATE        AQI 153 UNHEALT…
+☀ MORNING ⛈ EVENING ☀ NIGHT  ↑ Rising · +2 in 3 h   PM2.5 39 · Haze 0.78
+MET · 17:20                  APIMS · 17:00          COPERNICUS · 17:00
+```
+
+The band word sits beside the number; a long one that doesn't fit ends in "…".
+
+| Part | What it shows | From | Fetched |
+|---|---|---|---|
+| Weather | The title with the place and today's outlook in words ("Thunderstorms in places, afternoon"); today's low and high from MET (°C; not a "feels like"); an icon each for the morning, evening and night (no rain, cloudy, rain, thunderstorms); when the forecast was fetched | MET Malaysia's forecast, through data.gov.my's open API (no key) | Hourly (MET puts it out daily and sometimes revises it in the day) |
+| Warning | In amber on the title row, instead of the outlook, while a MET warning (thunderstorms, heavy rain…) names your place: "⚠ Thunderstorms warning until 20:00". MET lists districts ("Selangor (Sepang, Kuala Langat, Klang and Petaling)"), so with Location on Auto the prayer zone's areas count too. Sea warnings aren't shown. | MET Malaysia's warnings, through data.gov.my | Every 15 min (MET issues them whenever needed) |
+| API | The Air Pollutant Index at the station, its band in the band's colour (Good ≤50 blue, Moderate ≤100 green, Unhealthy ≤200 yellow, Very unhealthy ≤300 orange, Hazardous red, as soft pastels), whether it's rising or falling (the reading shown against the one 3 hours before: "↑ Rising · +2 in 3 h" in amber, "↓ Falling" in green, "→ Steady" for a move under 2), and the reading's hour | The DOE's APIMS: every station's latest hourly reading, from the same map service the APIMS portal draws from, and the station's last 24 hours (for the trend, about 6 KB) | Once an hour, when the new reading is out (from about 10 past; tried again every 10 min until it is) |
+| AQI | The US Air Quality Index for the station's spot and its band (≤50 green, ≤100 yellow, ≤150 orange, ≤200 red, ≤300 purple, above maroon, as pastels); PM2.5 (µg/m³) and haze: the aerosol optical depth, how much the air's particles dim the sunlight (about 0.1 clear, 0.5 hazy, 1 or more thick haze); the model's hour | The EU's Copernicus Atmosphere Monitoring Service (CAMS) model, through Open-Meteo (no key) | Once an hour, at the start of each hour (its values are hourly) |
+
+
+- **The two numbers use different scales.** Malaysia's API and the US AQI weigh PM2.5 differently, and the US scale is stricter, so the same air often reads higher there (e.g. API 74 Moderate, US AQI 144). The API is measured at the station; Copernicus is a forecast model for the same spot, a second opinion rather than a duplicate.
+- **Where:** Settings → Weather. **Location** is Auto by default: the prayer zone's town matched to MET's places (SGR03 → Klang), else its state's forecast (for islands, peaks and whole-state zones). **Air quality station** is Nearest by default: the APIMS station closest to the prayer zone's town (SGR03 → Klang). Both lists download when first opened.
+- **The forecast text** is MET's own (in Malay), put into English: "Ribut petir di beberapa tempat" → Thunderstorms in places; a phrase it doesn't know yet shows as MET wrote it.
+- **Offline:** everything is kept in `files/weather/` and shown from there straight away. A reading over 3 hours old turns grey, and a part that has never loaded shows "–".
+- **APIMS has no published API:** the card reads the APIMS portal's own map service (`eqms.doe.gov.my/api3/publicmapproxy/…/CAQM_MCAQM_Current_Reading`). If the DOE changes it, the API part shows "–" until the launcher is updated; the rest keeps working.
+- **Credits:** Weather: MET Malaysia (data.gov.my) · Air Pollutant Index: Department of Environment Malaysia (APIMS) · Air quality: Copernicus Atmosphere Monitoring Service, via Open-Meteo (CC BY 4.0).
+
 ## Most used apps
 
-- **The card:** under the prayer card, it shows your top 5 apps this week, each with its time and a bar, plus the total. The week starts on Monday, or Sunday if you pick it in **Settings → Most used → Week starts on**, and counts up to today; it starts again from zero on that day each week.
+- **The card:** under the System card (Now Playing takes its spot while something plays), it shows your top 5 apps this week, each with its time and a bar, plus the total. The week starts on Monday, or Sunday if you pick it in **Settings → Most used → Week starts on**, and counts up to today; it starts again from zero on that day each week.
 - **The grid:** most used first by **all-time** use (since the launcher started counting), every app included, even the ones left out of the card. Apps never used stay A–Z after them. The phone remote's app list uses the same order. The card and the grid refresh every time you come back to the home screen.
 - **How time is counted, per day:**
   - **Visible time.** This counts watching HDMI or tuner through Live TV, which Android barely counts as "foreground".

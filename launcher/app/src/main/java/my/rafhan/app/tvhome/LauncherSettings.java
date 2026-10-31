@@ -30,6 +30,9 @@ final class LauncherSettings {
             STATUS_BAR = "status_bar", STATUS_LEFT = "status_left", STATUS_CENTER = "status_center",
             STATUS_RIGHT = "status_right", STATUS_POS = "status_position", STATUS_SIZE = "status_size",
             STATUS_BG = "status_background", APPS_PER_ROW = "apps_per_row";
+    // The Weather card (Settings → Weather): on/off, MET place id ("" = Auto), APIMS station id ("" = Nearest).
+    static final String SHOW_WEATHER = "show_weather", WEATHER_PLACE = "weather_place",
+            WEATHER_STATION = "weather_station";
     // The Globe screen saver's layers (Settings → Screen saver, when Globe is the one shown).
     static final String GLOBE_PRAYER_LINES = "globe_prayer_lines", GLOBE_MAKKAH = "globe_makkah",
             GLOBE_ZONE = "globe_zone", GLOBE_CITY_LIGHTS = "globe_city_lights", GLOBE_CLOUDS = "globe_clouds",
@@ -133,6 +136,26 @@ final class LauncherSettings {
     static void setZone(Context ctx, String zone) {
         prefs(ctx).edit().putString(ZONE, zone).apply();
         changed(ZONE);
+    }
+
+    /** The MET forecast place's id ("Tn181"), or "" for Auto: the prayer zone's town. */
+    static String weatherPlace(Context ctx) {
+        return prefs(ctx).getString(WEATHER_PLACE, "");
+    }
+
+    static void setWeatherPlace(Context ctx, String id) {
+        prefs(ctx).edit().putString(WEATHER_PLACE, id).apply();
+        changed(WEATHER_PLACE);
+    }
+
+    /** The APIMS station's id ("CA21B"), or "" for Nearest: the one closest to the prayer zone. */
+    static String weatherStation(Context ctx) {
+        return prefs(ctx).getString(WEATHER_STATION, "");
+    }
+
+    static void setWeatherStation(Context ctx, String id) {
+        prefs(ctx).edit().putString(WEATHER_STATION, id).apply();
+        changed(WEATHER_STATION);
     }
 
     /**

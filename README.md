@@ -15,7 +15,7 @@ A fast, minimal home screen for **Android TV and Google TV** (Android 8.0 or new
   </tr>
   <tr>
     <td valign="top">Rows of recommendations and sponsored content, with your apps squeezed into one line.</td>
-    <td valign="top">Your apps, the time and what matters at a glance: prayer times, most used apps, a live system card and Now Playing, over a calm wallpaper.</td>
+    <td valign="top">Your apps, the time and what matters at a glance: prayer times, most used apps, a live system card, weather and air quality, and Now Playing, over a calm wallpaper.</td>
   </tr>
 </table>
 
@@ -37,7 +37,7 @@ The Globe screen saver (21 seconds, no sound): Settings → Screen saver → **S
     <td width="50%"><img src="docs/app-grid.jpg" width="100%" alt="All apps grid"></td>
   </tr>
   <tr>
-    <td valign="top"><b>Home</b>: big clock with the date and Hijri date, today's prayer times with a countdown, your most used apps this week, a system card (CPU, RAM, storage, network, USB debugging), Now Playing with cover art and controls, and an app dock you arrange yourself.</td>
+    <td valign="top"><b>Home</b>: big clock with the date and Hijri date, today's prayer times with a countdown, your most used apps this week, today's weather and air quality (MET Malaysia, APIMS and Copernicus), a system card (CPU, RAM, storage, network, USB debugging), Now Playing with cover art and controls, and an app dock you arrange yourself.</td>
     <td valign="top"><b>All apps</b> (Down from the dock): 5 per row (6 or 7 in Settings, the dock follows), most used first (all time), with a glass focus highlight that springs from tile to tile. Hold OK on any app to add it to the dock.</td>
   </tr>
   <tr>
@@ -159,6 +159,7 @@ This setup is meant for a TV on your own network, and it deliberately makes the 
 
 - **USB debugging stays on** (port 5555): anyone on your Wi-Fi can connect with `adb` and control the TV. The launcher uses the same loopback connection for the remote's D-pad and keyboard inside apps, screenshots, sleep/restart and disabling apps. Turn it off in Developer options when you don't need those — the rest of the phone remote keeps working.
 - **What the launcher is granted over ADB:** "draw over other apps" (the pairing PIN and messages over any app), an accessibility service (Back and Home from the phone remote, and the remote's Input button), `DUMP` (Now Playing without USB debugging), `WRITE_SECURE_SETTINGS` (choosing and switching the screen saver from TV Home's Settings), `READ_LOGS` below Android 13 (the Live log screen saver and Play Store updates in the bell; it can read the whole system log, which stays on the TV) and All files access (the Files tab and the `Wallpapers` folder). The accessibility service could see what's on screen, but doesn't ask to; it sends Back and Home, and filters one key, the Input button, letting every other key through untouched.
+- **The Weather card fetches public data** while TV Home is open (and keeps it for offline use): MET Malaysia's forecast and warnings for the place set in Settings (data.gov.my), the DOE's APIMS readings, and Copernicus air quality for the chosen station's spot (Open-Meteo). Like the Globe, the requests carry nothing about you beyond the TV's address and the `TvHome/1.0` user agent.
 - **The Globe screen saver fetches public data while it's on screen** (and keeps it for offline use): NASA's Earth maps (once, from Wikimedia Commons), OpenStreetMap's edits, USGS's earthquakes, CelesTrak's satellite orbits, NOAA's aurora and wind, NASA's snow and ice, and the cloud map, each only if its layer is switched on. The requests carry nothing about you or the TV beyond what any web request does (its address and a `TvHome/1.0` user agent).
 - **The phone remote is plain HTTP on port 8486.** Pairing needs a six-digit PIN shown on the TV (five tries, then a lockout that grows to 15 minutes), and the server refuses requests whose `Host` isn't an IP address and any cross-site request, so a web page can't drive the TV. Traffic isn't encrypted though: keep the TV on a trusted WPA2/WPA3 network, never forward the port from your router, and use Settings → Phone remote → Forget all phones if you lose a phone.
 - **Releases are signed with the project's own key**, so every GitHub Release updates the last one in place, settings kept. Building it yourself without that key signs with your computer's debug key instead: switching between a self-built and a downloaded APK needs one uninstall, which resets the launcher's settings. See [development.md](docs/development.md#release-signing-and-github-releases).
@@ -174,7 +175,7 @@ scripts/restore.sh --remove-launcher  # ...and uninstalls this launcher
 
 ## More
 
-- [How every feature works](docs/features.md): prayer times and azan, bell, screen savers (and the Globe's data credits), Now Playing, running apps, Settings, Most used, System card, phone remote, dock, wallpapers (with photo credits)
+- [How every feature works](docs/features.md): prayer times and azan, weather and air quality (with data credits), bell, screen savers (and the Globe's data credits), Now Playing, running apps, Settings, Most used, System card, phone remote, dock, wallpapers (with photo credits)
 - [Debloating the original Mi TV](docs/xiaomi-debloat.md): what was disabled and kept, speed tweaks, ad-blocking DNS
 - [Development](docs/development.md): folder structure, rebuilding, benchmark method
 - [PROMPT.md](PROMPT.md): the prompt to repeat the whole setup on another TV with an AI agent
