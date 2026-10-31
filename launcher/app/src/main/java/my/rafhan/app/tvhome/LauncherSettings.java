@@ -36,7 +36,7 @@ final class LauncherSettings {
             GLOBE_SNOW = "globe_snow", GLOBE_AURORA = "globe_aurora", GLOBE_EDITS = "globe_edits",
             GLOBE_QUAKES = "globe_quakes", GLOBE_ISS = "globe_iss", GLOBE_TIANGONG = "globe_tiangong",
             GLOBE_HUBBLE = "globe_hubble", GLOBE_LEGEND = "globe_legend", GLOBE_WIND = "globe_wind",
-            GLOBE_GLINT = "globe_glint", GLOBE_RIM = "globe_rim";
+            GLOBE_GLINT = "globe_glint", GLOBE_RIM = "globe_rim", GLOBE_SKY = "globe_sky";
 
     /** What a status-bar slot shows. */
     static final int SLOT_NONE = 0, SLOT_SPEED = 1, SLOT_UPTIME = 2, SLOT_CLOCK = 3, SLOT_ELAPSED = 4;
@@ -84,10 +84,11 @@ final class LauncherSettings {
 
     /**
      * Every switch starts on, except the info overlay (it would double up with an overlay app)
-     * and the Globe's clouds and wind (they cover much of the map; wind also takes more CPU).
+     * and the Globe's sky, clouds and wind (sky is an optional backdrop; clouds cover much of the
+     * map; wind also takes more CPU).
      */
     private static boolean defaultFlag(String key) {
-        return !STATUS_BAR.equals(key) && !GLOBE_CLOUDS.equals(key) && !GLOBE_WIND.equals(key);
+        return !STATUS_BAR.equals(key) && !GLOBE_SKY.equals(key) && !GLOBE_CLOUDS.equals(key) && !GLOBE_WIND.equals(key);
     }
 
     static void setFlag(Context ctx, String key, boolean on) {

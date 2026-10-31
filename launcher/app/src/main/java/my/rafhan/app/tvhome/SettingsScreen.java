@@ -412,6 +412,7 @@ final class SettingsScreen {
         now.action = host::startScreenSaver;
         out.add(now);
         if (ScreenSaver.globe(ctx).equals(current)) {
+            out.add(toggle(LauncherSettings.GLOBE_SKY, "Sky", "Real stars and deep-sky objects behind the globe"));
             out.add(toggle(LauncherSettings.GLOBE_PRAYER_LINES, "Prayer lines", "Where it's Maghrib and Fajr right now"));
             out.add(toggle(LauncherSettings.GLOBE_MAKKAH, "Makkah and qibla", "The Kaaba, and the way to it from your zone"));
             out.add(toggle(LauncherSettings.GLOBE_ZONE, "Your zone", "Where your prayer zone is"));

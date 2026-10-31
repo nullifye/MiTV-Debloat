@@ -16,6 +16,8 @@ import android.view.Choreographer;
 import android.view.View;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -36,11 +38,13 @@ import javax.microedition.khronos.opengles.GL10;
  * Fajr right now, today's clouds, snow, sea ice and aurora, the wind blowing, Makkah and your zone with the
  * qibla arc between them, and live dots (map
  * edits, earthquakes; GlobeFeeds) and satellites (the ISS, Tiangong and Hubble; Orbit).
+ * With Sky on, real stars and Messier objects (Sky) sit behind it in the inertial frame.
  *
  * Drawn with OpenGL ES 2.0, which every Android TV has: a sphere mesh whose vertices carry
  * their spot on the two maps and the sun's height there (worked out at high precision, so it
- * looks the same on GPUs with only medium precision per pixel), then the atmosphere on a square
- * around it, then the surface dots and satellites at their orbital height as GL points.
+ * looks the same on GPUs with only medium precision per pixel), the sky as dim points, then the
+ * atmosphere on a square around it, then the surface dots and satellites at their orbital height
+ * as GL points.
  * About 20 frames a second. Text (clock, legend) is the Overlay view on top.
  *
  * Against burn-in, like the other screen savers: nothing white, the globe slides to a new
@@ -54,10 +58,11 @@ final class GlobeView extends GLSurfaceView {
 
     /** Which layers are on (Settings → Screen saver, with Globe chosen); read again every few seconds. */
     static final class Layers {
-        boolean lines, makkah, zone, lights, clouds, snow, aurora, wind, glint, rim, edits, quakes, iss, tiangong, hubble,
+        boolean sky, lines, makkah, zone, lights, clouds, snow, aurora, wind, glint, rim, edits, quakes, iss, tiangong, hubble,
                 legend;
 
         void read(Context ctx) {
+            sky = LauncherSettings.flag(ctx, LauncherSettings.GLOBE_SKY);
             lines = LauncherSettings.flag(ctx, LauncherSettings.GLOBE_PRAYER_LINES);
             makkah = LauncherSettings.flag(ctx, LauncherSettings.GLOBE_MAKKAH);
             zone = LauncherSettings.flag(ctx, LauncherSettings.GLOBE_ZONE);
@@ -192,6 +197,23 @@ final class GlobeView extends GLSurfaceView {
             m[j * 3] = (float) x;
             m[j * 3 + 1] = (float) (y * Math.cos(t) - z * Math.sin(t));
             m[j * 3 + 2] = (float) (z * Math.cos(t) + y * Math.sin(t));
+        }
+        return m;
+    }
+
+    /**
+     * The same view rotation for the inertial sky: the catalogue's ecliptic vectors are fixed,
+     * so only the camera's longitude and tilt turn them (no sidereal rotation).
+     */
+    static float[] skyToView(double from, double tilt) {
+        float[] m = new float[9];
+        double f = Math.toRadians(from), t = Math.toRadians(tilt);
+        for (int j = 0; j < 3; j++) {
+            double x = j == 0 ? 1 : 0, y = j == 1 ? 1 : 0, z = j == 2 ? 1 : 0;
+            double xr = x * Math.cos(f) - z * Math.sin(f), zr = x * Math.sin(f) + z * Math.cos(f);
+            m[j * 3] = (float) xr;
+            m[j * 3 + 1] = (float) (y * Math.cos(t) - zr * Math.sin(t));
+            m[j * 3 + 2] = (float) (zr * Math.cos(t) + y * Math.sin(t));
         }
         return m;
     }
@@ -354,6 +376,48 @@ final class GlobeView extends GLSurfaceView {
     /** The sphere mesh: 144 × 72 steps of 2.5°, so its outline is round to a tenth of a pixel. */
     private static final int MESH_LON = 144, MESH_LAT = 72;
 
+    /**
+     * The sky's angular scale: an orthographic unit direction covers this many globe radii, so
+     * the visible celestial hemisphere reaches past the screen's corners instead of ending in a
+     * circle. Stars are at infinity, so this need not match the globe's own scale.
+     */
+    private static final float SKY_SCALE = 2.35f;
+
+    // Sky: a_pos = a unit vector in the inertial ecliptic frame (Sky), a_color = rgba, a_size in
+    // pixels, a_kind 0 a star and 1 a deep-sky object. Drawn before the opaque globe, so the
+    // Earth hides the stars behind it.
+    private static final String SKY_VS =
+            "attribute vec3 a_pos;\n"
+                    + "attribute vec4 a_color;\n"
+                    + "attribute float a_size, a_kind;\n"
+                    + "uniform mat3 u_toView;\n"
+                    + "uniform vec2 u_center, u_screen;\n"
+                    + "uniform float u_radius;\n"
+                    + "varying vec4 v_color;\n"
+                    + "varying float v_kind, v_depth;\n"
+                    + "void main() {\n"
+                    + "  vec3 v = u_toView * a_pos;\n"
+                    + "  gl_Position = vec4((u_center + v.xy * u_radius) / u_screen * 2.0 - 1.0, 0.0, 1.0);\n"
+                    + "  gl_PointSize = a_size;\n"
+                    + "  v_color = a_color;\n"
+                    + "  v_kind = a_kind;\n"
+                    + "  v_depth = v.z;\n"
+                    + "}\n";
+
+    private static final String SKY_FS =
+            "precision mediump float;\n"
+                    + "varying vec4 v_color;\n"
+                    + "varying float v_kind, v_depth;\n"
+                    + "void main() {\n"
+                    + "  if (v_depth < 0.0) discard;\n" // the half of the celestial sphere behind the viewer
+                    + "  float d = length(gl_PointCoord - 0.5) * 2.0;\n"
+                    + "  float shape = v_kind > 0.5\n"
+                    + "      ? 0.40 * (1.0 - smoothstep(0.0, 0.90, d)) + 0.22 * (1.0 - smoothstep(0.60, 1.0, d))\n"
+                    + "      : exp(-d * d * 3.0);\n"
+                    + "  float a = shape * v_color.a;\n"
+                    + "  gl_FragColor = vec4(v_color.rgb * a, a);\n" // premultiplied
+                    + "}\n";
+
     // Dots: a_pos = (x, y, z, kind). Surface markers are on the unit sphere; orbital points
     // carry their actual position in Earth radii, and are occluded by the sphere per pixel.
     private static final String DOT_VS =
@@ -435,7 +499,8 @@ final class GlobeView extends GLSurfaceView {
     private static final float WIND_PACE = 0.4f;
 
     private final class Renderer implements GLSurfaceView.Renderer {
-        private int globe, glow, meshVbo, meshIbo, dots, windProg, dayTex, nightTex, iconTex, cloudTex, snowTex, auroraTex, width, height, frames;
+        private int globe, glow, skyProg, meshVbo, meshIbo, dots, windProg, dayTex, nightTex, iconTex, cloudTex, snowTex, auroraTex, width, height, frames;
+        private int skyVbo, skyCount;
         // Particles: where (radians), how old and how long they live (s), their trail (unit vectors, newest first).
         private final float[] pLat = new float[WIND_N], pLon = new float[WIND_N], pAge = new float[WIND_N],
                 pLife = new float[WIND_N], pTrail = new float[WIND_N * TRAIL * 3];
@@ -465,6 +530,7 @@ final class GlobeView extends GLSurfaceView {
             globe = program(SPHERE_VS, SPHERE_FS);
             glow = program(GLOW_VS, GLOW_FS);
             dots = program(DOT_VS, DOT_FS);
+            skyProg = program(SKY_VS, SKY_FS);
             mesh();
             if (globe == 0 || glow == 0) { // this GPU can't draw it: let the screen saver show something else
                 String chip = GLES20.glGetString(GLES20.GL_RENDERER);
@@ -484,6 +550,23 @@ final class GlobeView extends GLSurfaceView {
             Bitmap icons = icons(64);
             iconTex = upload(icons);
             icons.recycle();
+            // The real sky, once: HYG stars and Messier objects (assets/sky.csv).
+            if (skyProg != 0) {
+                try (InputStream in = ctx.getAssets().open("sky.csv")) {
+                    float[] data = Sky.parse(in, density);
+                    skyCount = data.length / Sky.STRIDE;
+                    if (skyCount > 0) {
+                        int[] ids = new int[1];
+                        GLES20.glGenBuffers(1, ids, 0);
+                        skyVbo = ids[0];
+                        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, skyVbo);
+                        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, data.length * 4, floats(data), GLES20.GL_STATIC_DRAW);
+                        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+                    }
+                } catch (IOException e) {
+                    android.util.Log.w("TvHome", "globe: no sky catalogue", e);
+                }
+            }
             // Empty until their data is in (no clouds, snow or aurora).
             cloudTex = bytes(0, GLES20.GL_LUMINANCE, 1, 1, new byte[1]);
             snowTex = bytes(0, GLES20.GL_ALPHA, 1, 1, new byte[1]);
@@ -524,6 +607,9 @@ final class GlobeView extends GLSurfaceView {
             float[] toView = earthToView(now, from, tilt), toEarth = transpose(toView);
             double[] sub = Globe.subsolar(now), sun = Globe.vector(sub[0], sub[1]);
             float[] sunView = mul(toView, sun);
+
+            // The sky, behind everything: real stars and deep-sky objects, dim for burn-in.
+            if (on.sky) sky(skyToView(from, tilt), cx, cy, radius);
 
             // The sphere.
             GLES20.glUseProgram(globe);
@@ -620,6 +706,37 @@ final class GlobeView extends GLSurfaceView {
             GLES20.glDisableVertexAttribArray(pos);
             GLES20.glDisableVertexAttribArray(col);
             GLES20.glDisableVertexAttribArray(size);
+            GLES20.glDisable(GLES20.GL_BLEND);
+        }
+
+        /** The real sky: dim stars and deep-sky objects on the far side of the globe. */
+        private void sky(float[] toView, float cx, float cy, float radius) {
+            if (skyProg == 0 || skyCount == 0) return;
+            GLES20.glUseProgram(skyProg);
+            GLES20.glUniformMatrix3fv(loc(skyProg, "u_toView"), 1, false, toView, 0);
+            GLES20.glUniform2f(loc(skyProg, "u_center"), cx, cy);
+            GLES20.glUniform2f(loc(skyProg, "u_screen"), width, height);
+            GLES20.glUniform1f(loc(skyProg, "u_radius"), radius * SKY_SCALE);
+            int pos = GLES20.glGetAttribLocation(skyProg, "a_pos"), col = GLES20.glGetAttribLocation(skyProg, "a_color"),
+                    size = GLES20.glGetAttribLocation(skyProg, "a_size"), kind = GLES20.glGetAttribLocation(skyProg, "a_kind");
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, skyVbo);
+            int stride = Sky.STRIDE * 4;
+            GLES20.glVertexAttribPointer(pos, 3, GLES20.GL_FLOAT, false, stride, 0);
+            GLES20.glVertexAttribPointer(col, 4, GLES20.GL_FLOAT, false, stride, 12);
+            GLES20.glVertexAttribPointer(size, 1, GLES20.GL_FLOAT, false, stride, 28);
+            GLES20.glVertexAttribPointer(kind, 1, GLES20.GL_FLOAT, false, stride, 32);
+            GLES20.glEnableVertexAttribArray(pos);
+            GLES20.glEnableVertexAttribArray(col);
+            GLES20.glEnableVertexAttribArray(size);
+            GLES20.glEnableVertexAttribArray(kind);
+            GLES20.glEnable(GLES20.GL_BLEND);
+            GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
+            GLES20.glDrawArrays(GLES20.GL_POINTS, 0, skyCount);
+            GLES20.glDisableVertexAttribArray(pos);
+            GLES20.glDisableVertexAttribArray(col);
+            GLES20.glDisableVertexAttribArray(size);
+            GLES20.glDisableVertexAttribArray(kind);
+            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
             GLES20.glDisable(GLES20.GL_BLEND);
         }
 
@@ -1125,7 +1242,8 @@ final class GlobeView extends GLSurfaceView {
     static final class Overlay extends View {
         private static final int GREY = 0xFF737373, DIM = 0xFF5E5E5E, DARK = 0xFF454545;
         private static final String CREDITS = "Earth, snow & ice: NASA  ·  Clouds: contains modified EUMETSAT data"
-                + "  ·  Aurora, wind: NOAA  ·  Map edits © OpenStreetMap contributors  ·  Earthquakes: USGS  ·  Orbits: CelesTrak";
+                + "  ·  Aurora, wind: NOAA  ·  Map edits © OpenStreetMap contributors  ·  Earthquakes: USGS  ·  Orbits: CelesTrak"
+                + "  ·  Stars: HYG  ·  Deep sky: OpenNGC";
         // The legend: what each line's swatch is, and its colour (icons have their own).
         private static final int LINE = 0, KAABA_ICON = 1, RING_MARK = 2, DOT_MARK = 3, SATELLITE_ICON = 4, PERSON_ICON = 5,
                 SATELLITE_CN_ICON = 6, HUBBLE_ICON = 7;
