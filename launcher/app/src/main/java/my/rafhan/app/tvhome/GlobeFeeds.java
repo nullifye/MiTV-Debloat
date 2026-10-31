@@ -19,6 +19,9 @@ import java.util.zip.GZIPInputStream;
  * What the Globe screen saver draws from the internet:
  *  - its two maps, NASA's Earth by day and at night (public domain, from Wikimedia Commons),
  *    downloaded once (about 0.5 MB) and kept in the app's files dir, like the wallpapers;
+ *  - the sky's stars and Messier objects: the HYG and OpenNGC catalogues, downloaded once while
+ *    Sky is on (about 17 MB, streamed) and boiled down on the TV to sky.csv (Sky.build, about
+ *    0.3 MB), which is kept in the files dir like the maps;
  *  - two live feeds, fetched only while the screen saver runs: OpenStreetMap's changesets of
  *    the last minute (every 60 s) and USGS's M2.5+ earthquakes of the past day (every 5 min). A
  *    feed that fails just leaves its layer empty;
@@ -49,6 +52,8 @@ final class GlobeFeeds {
             + "&REQUEST=GetMap&VERSION=1.3.0&CRS=EPSG:4326&BBOX=-90,-180,90,180&WIDTH=1024&HEIGHT=512"
             + "&FORMAT=image/png&TRANSPARENT=true&LAYERS=";
     private static final String AURORA = "https://services.swpc.noaa.gov/json/ovation_aurora_latest.json";
+    private static final String HYG = "https://raw.githubusercontent.com/astronexus/HYG-Database/main/hyg/v3/hyg_v38.csv.gz";
+    private static final String OPENNGC = "https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/";
     /** How long an edit's dot stays (fading). */
     static final long EDIT_FADE_MS = 3 * 60_000;
     private static final int MAX_BYTES = 8 << 20;
@@ -108,6 +113,43 @@ final class GlobeFeeds {
         return new File(new File(ctx.getFilesDir(), "globe"), "ice.png");
     }
 
+    /** The sky's catalogue, made by fetchSky (GlobeView loads it once it's there). */
+    static File sky(Context ctx) {
+        return new File(new File(ctx.getFilesDir(), "globe"), "sky.csv");
+    }
+
+    /**
+     * Makes the sky's catalogue if it isn't there yet: downloads OpenNGC's two files, then
+     * streams HYG's (13.6 MB gzipped) through Sky.build, so only the 0.3 MB result is ever
+     * stored. A catalogue that comes out short (an error page) isn't kept. Blocking.
+     */
+    static synchronized boolean fetchSky(Context ctx) {
+        File f = sky(ctx), dir = f.getParentFile(), tmp = new File(f.getPath() + ".tmp");
+        if (f.isFile()) return true;
+        if (dir == null || (!dir.isDirectory() && !dir.mkdirs())) return false;
+        try {
+            InputStream[] ngc = {new ByteArrayInputStream(get(OPENNGC + "NGC.csv")),
+                    new ByteArrayInputStream(get(OPENNGC + "addendum.csv"))};
+            HttpURLConnection c = open(HYG);
+            int[] n;
+            try (InputStream in = new GZIPInputStream(c.getInputStream());
+                 java.io.Writer out = new java.io.BufferedWriter(new java.io.OutputStreamWriter(
+                         new java.io.FileOutputStream(tmp), StandardCharsets.UTF_8))) {
+                n = Sky.build(in, ngc, out);
+            } finally {
+                c.disconnect();
+            }
+            if (n[0] < 8000 || n[1] < 100) throw new IOException("only " + n[0] + " stars and " + n[1] + " Messier objects");
+            return tmp.renameTo(f);
+        } catch (Exception e) {
+            android.util.Log.w("TvHome", "globe: sky catalogue failed: " + e);
+            return false;
+        } finally {
+            //noinspection ResultOfMethodCallIgnored
+            tmp.delete();
+        }
+    }
+
     static boolean mapsReady(Context ctx) {
         return dayMap(ctx).isFile() && nightMap(ctx).isFile();
     }
@@ -142,7 +184,7 @@ final class GlobeFeeds {
     }
 
     private void loop() {
-        long nextOsm = 0, nextQuakes = 0, nextOrbits = 0, nextAurora = 0;
+        long nextOsm = 0, nextQuakes = 0, nextOrbits = 0, nextAurora = 0, nextSky = 0;
         readOrbits(false); // what's kept, straight away
         loadWind();
         while (running) {
@@ -170,6 +212,11 @@ final class GlobeFeeds {
             if (now >= nextQuakes && on(LauncherSettings.GLOBE_QUAKES)) {
                 nextQuakes = now + QUAKES_EVERY_MS;
                 readQuakes();
+            }
+            // Last, so the quick feeds come first; once made, the catalogue is kept for good.
+            if (now >= nextSky && on(LauncherSettings.GLOBE_SKY)) {
+                nextSky = now + 60 * 60_000; // tried again hourly until it's in
+                fetchSky(app);
             }
             try {
                 Thread.sleep(1_000);
@@ -313,13 +360,22 @@ final class GlobeFeeds {
         }
     }
 
-    private static byte[] get(String url) throws IOException {
+    /** An open request that answered 200 (disconnect it when done). */
+    private static HttpURLConnection open(String url) throws IOException {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(15_000);
+        c.setReadTimeout(15_000);
+        c.setRequestProperty("User-Agent", Wallpapers.UA);
+        if (c.getResponseCode() != 200) {
+            c.disconnect();
+            throw new IOException("HTTP " + c.getResponseCode() + " for " + url);
+        }
+        return c;
+    }
+
+    private static byte[] get(String url) throws IOException {
+        HttpURLConnection c = open(url);
         try {
-            c.setConnectTimeout(15_000);
-            c.setReadTimeout(15_000);
-            c.setRequestProperty("User-Agent", Wallpapers.UA);
-            if (c.getResponseCode() != 200) throw new IOException("HTTP " + c.getResponseCode() + " for " + url);
             try (InputStream in = c.getInputStream()) {
                 return readAll(in);
             }

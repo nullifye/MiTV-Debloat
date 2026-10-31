@@ -412,7 +412,6 @@ final class SettingsScreen {
         now.action = host::startScreenSaver;
         out.add(now);
         if (ScreenSaver.globe(ctx).equals(current)) {
-            out.add(toggle(LauncherSettings.GLOBE_SKY, "Sky", "Real stars and deep-sky objects behind the globe"));
             out.add(toggle(LauncherSettings.GLOBE_PRAYER_LINES, "Prayer lines", "Where it's Maghrib and Fajr right now"));
             out.add(toggle(LauncherSettings.GLOBE_MAKKAH, "Makkah and qibla", "The Kaaba, and the way to it from your zone"));
             out.add(toggle(LauncherSettings.GLOBE_ZONE, "Your zone", "Where your prayer zone is"));
@@ -420,6 +419,7 @@ final class SettingsScreen {
             out.add(toggle(LauncherSettings.GLOBE_GLINT, "Sun glint", "The sun's reflection on the sea"));
             out.add(toggle(LauncherSettings.GLOBE_RIM, "Sunlit rim", "The atmosphere glows brighter on the sun's side"));
             out.add(toggle(LauncherSettings.GLOBE_SNOW, "Snow and sea ice", "From NASA, daily"));
+            out.add(toggle(LauncherSettings.GLOBE_SKY, "Sky", "The Sun, the Moon in its phase, real stars and deep-sky objects"));
             out.add(toggle(LauncherSettings.GLOBE_CLOUDS, "Clouds", "From weather satellites, every 3 hours"));
             out.add(toggle(LauncherSettings.GLOBE_WIND, "Wind", "Moving lines: the wind near the ground, NOAA's forecast"));
             out.add(toggle(LauncherSettings.GLOBE_AURORA, "Aurora", "NOAA's forecast, every 15 minutes"));

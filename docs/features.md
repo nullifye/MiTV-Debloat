@@ -96,7 +96,7 @@ Some TVs, like this Mi TV, can't open their screen-saver page from another app, 
 The Earth as it really sits in space right now, filling 90 % of the screen's height, with what's happening on it live.
 
 - **True to the moment:** the Earth is turned to its real rotation (sidereal time), its axis tilted 23.44° against its orbit (towards the sun in June, away in December), ecliptic north up, and lit by the sun where it really stands. The viewpoint circles it once every 2 minutes, westward, so the land passes west to east. It starts facing your prayer zone.
-- **The sky (optional):** instead of plain black, the real stars to magnitude 6.5 (the naked-eye limit) and the 109 Messier galaxies, nebulae and clusters, placed from their catalogued positions and turning with the camera's inertial view. Dim, and nothing white, for burn-in.
+- **The sky:** instead of plain black, the Sun where it really stands (in line with the light on the globe, so it hides behind the Earth when you face the night side), the Moon where it really is and in tonight's phase (full, new, crescent or quarter as seen from the Earth, its lit side towards the Sun, its dark side faintly there; it can even cover the Sun in an eclipse), the real stars to magnitude 6.5 (the naked-eye limit) and the 109 Messier galaxies, nebulae and clusters, placed from their catalogued positions and turning with the camera's inertial view. Dim, and nothing white, for burn-in: the Sun is a warm amber disc, the Moon grey. The catalogues aren't in the app: the first time the Globe runs with Sky on, the TV downloads HYG and OpenNGC (about 17 MB, once), keeps just those 9,029 objects (a 0.3 MB file) and draws the stars from then on, offline too. The Sun and the Moon need no download: they're worked out on the TV (the Moon with the Astronomical Almanac's series, within about 0.2°).
 - **The maps:** NASA's Earth by day (Blue Marble) and at night (city lights), 1920 × 960, downloaded once from Wikimedia Commons (about 0.5 MB). Until they're in (first run, or offline), the Prayer time picture shows instead and the globe takes over once they arrive.
 - **Satellites:** the ISS, Tiangong and Hubble move at their calculated orbital height: in front of the Earth, briefly beyond its rim, then hidden behind it. Their fading trails follow the same paths.
 - **The remote:** the arrows turn it. Left and right go round it, up and down tilt it (up to 70°) to see more of the north or south. A press moves it about 10°, and holding keeps it going. Ten seconds after the last arrow it turns on its own again and levels out. Any other key ends the screen saver; it ends on the key's release, so the key never reaches the app underneath. A hint in a top corner says so for the first 8 seconds.
@@ -108,7 +108,6 @@ Each layer has its own switch (Settings → Screen saver, with Globe chosen). No
 
 | Switch | What it shows | From | Fetched | Starts |
 |---|---|---|---|---|
-| Sky | Real stars to magnitude 6.5 and the 109 Messier objects, dimmed for burn-in | HYG v3.8 and OpenNGC, bundled with the app | – | Off |
 | Prayer lines | Where it's Maghrib right now (amber: the sun at −0.833°, on the side where it's setting) and Fajr (teal: −18°, where it's rising; JAKIM's Subuh times put the sun about 18° down) | Worked out on the TV | – | On |
 | Makkah and qibla | A Kaaba icon on Makkah and a dotted great-circle arc to it from your zone | – | – | On |
 | Your zone | A person icon on your prayer zone's main town (Settings → Prayer times → Zone) | – | – | On |
@@ -116,6 +115,7 @@ Each layer has its own switch (Settings → Screen saver, with Globe chosen). No
 | Sun glint | The sun's reflection on the sea, where it would mirror towards you; none on land, ice or cloud | Worked out on the TV | – | On |
 | Sunlit rim | The atmosphere's edge, brighter and a little warm on the sun's side | Worked out on the TV | – | On |
 | Snow and sea ice | A soft white where there's snow or sea ice now (2–3 days behind) | NASA GIBS: SMAP snow, GHRSST sea ice | Every 12 h, ~100 KB | On |
+| Sky | The Sun and the Moon (in its real phase) where they stand now, real stars to magnitude 6.5 and the 109 Messier objects, dimmed for burn-in | The Sun and the Moon worked out on the TV; stars from HYG v3.8 and OpenNGC | Once, ~17 MB (0.3 MB kept) | On |
 | Clouds | Clouds by day; at night they hide the city lights | [Live Cloud Maps](https://clouds.matteason.co.uk), from EUMETSAT's satellites | Every 3 h, ~390 KB | Off |
 | Wind | 900 drifting streaks, faster and brighter where the wind is stronger (10 m above the ground) | NOAA GFS, 1°, the forecast step nearest to now | Every 3 h, ~160 KB | Off |
 | Aurora | A green glow on the night side where it's forecast | NOAA SWPC OVATION | Every 15 min, ~150 KB | On |

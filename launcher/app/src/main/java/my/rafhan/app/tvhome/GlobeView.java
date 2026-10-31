@@ -346,7 +346,8 @@ final class GlobeView extends GLSurfaceView {
 
     // The atmosphere around the sphere, drawn over it on a square: a faint glow outside, brighter
     // towards the sun (much more so with the sunlit rim on), and a soft sphere edge (premultiplied:
-    // nothing inside, the glow outside, a blend across the edge's pixel and a half).
+    // nothing inside, a blend across the edge's pixel and a half, and outside the glow added over
+    // the sky rather than covering it, so the stars and the Sun show up to the rim).
     private static final String GLOW_VS =
             "attribute vec2 a_corner;\n"
                     + "uniform vec2 u_center, u_screen;\n"
@@ -369,8 +370,8 @@ final class GlobeView extends GLSurfaceView {
                     + "  vec3 glow = vec3(0.16, 0.30, 0.58) * fade * 0.55 * (0.35 + 0.65 * toSun);\n"
                     + "  float sunlit = pow(toSun, 3.0) * u_rimOn;\n"
                     + "  glow += (vec3(0.22, 0.32, 0.50) + vec3(0.20, 0.10, 0.00) * pow(toSun, 6.0)) * fade * fade * sunlit * 0.7;\n"
-                    + "  float a = 1.0 - clamp((1.0 - r) / (1.5 * px), 0.0, 1.0);\n"
-                    + "  gl_FragColor = vec4(glow * a, a);\n"
+                    + "  float edge = 1.0 - clamp((1.0 - r) / (1.5 * px), 0.0, 1.0);\n"
+                    + "  gl_FragColor = vec4(glow * edge, r > 1.0 ? 0.0 : edge);\n"
                     + "}\n";
 
     /** The sphere mesh: 144 × 72 steps of 2.5°, so its outline is round to a tenth of a pixel. */
@@ -384,8 +385,8 @@ final class GlobeView extends GLSurfaceView {
     private static final float SKY_SCALE = 2.35f;
 
     // Sky: a_pos = a unit vector in the inertial ecliptic frame (Sky), a_color = rgba, a_size in
-    // pixels, a_kind 0 a star and 1 a deep-sky object. Drawn before the opaque globe, so the
-    // Earth hides the stars behind it.
+    // pixels, a_kind 0 a star, 1 a deep-sky object, 2 the Sun and 3 the Moon. Drawn before the
+    // opaque globe, so the Earth hides what's behind it.
     private static final String SKY_VS =
             "attribute vec3 a_pos;\n"
                     + "attribute vec4 a_color;\n"
@@ -406,12 +407,27 @@ final class GlobeView extends GLSurfaceView {
 
     private static final String SKY_FS =
             "precision mediump float;\n"
+                    + "uniform vec3 u_moonLight;\n"
                     + "varying vec4 v_color;\n"
                     + "varying float v_kind, v_depth;\n"
                     + "void main() {\n"
-                    + "  if (v_depth < 0.0) discard;\n" // the half of the celestial sphere behind the viewer
+                    // Only the half beyond the Earth: +z points at the viewer (as for the globe's
+                    // surface), and what lies that way is behind the camera.
+                    + "  if (v_depth > 0.0) discard;\n"
                     + "  float d = length(gl_PointCoord - 0.5) * 2.0;\n"
-                    + "  float shape = v_kind > 0.5\n"
+                    // The Moon: a ball lit from u_moonLight (Sky.moonLight), its dark side faintly
+                    // there (earthshine). Opaque, so it covers the stars, and the Sun in an eclipse.
+                    + "  if (v_kind > 2.5) {\n"
+                    + "    vec2 q = (gl_PointCoord - 0.5) * 2.0;\n"
+                    + "    vec3 n = vec3(q.x, -q.y, sqrt(max(0.0, 1.0 - d * d)));\n"
+                    + "    float lit = smoothstep(-0.04, 0.06, dot(n, u_moonLight));\n"
+                    + "    float disc = 1.0 - smoothstep(0.86, 1.0, d);\n"
+                    + "    gl_FragColor = vec4(v_color.rgb * v_color.a * (0.06 + 0.94 * lit) * disc, disc);\n"
+                    + "    return;\n"
+                    + "  }\n"
+                    + "  float shape = v_kind > 1.5\n" // the Sun: a disc with a soft glow
+                    + "      ? 1.0 - smoothstep(0.26, 0.32, d) + 0.30 * (1.0 - smoothstep(0.32, 1.0, d)) * step(0.29, d)\n"
+                    + "      : v_kind > 0.5\n"
                     + "      ? 0.40 * (1.0 - smoothstep(0.0, 0.90, d)) + 0.22 * (1.0 - smoothstep(0.60, 1.0, d))\n"
                     + "      : exp(-d * d * 3.0);\n"
                     + "  float a = shape * v_color.a;\n"
@@ -501,6 +517,8 @@ final class GlobeView extends GLSurfaceView {
     private final class Renderer implements GLSurfaceView.Renderer {
         private int globe, glow, skyProg, meshVbo, meshIbo, dots, windProg, dayTex, nightTex, iconTex, cloudTex, snowTex, auroraTex, width, height, frames;
         private int skyVbo, skyCount;
+        private long skyMade = -1; // the catalogue file's time when skyVbo was filled
+        private final FloatBuffer sunAndMoon = floats(new float[2 * Sky.STRIDE]);
         // Particles: where (radians), how old and how long they live (s), their trail (unit vectors, newest first).
         private final float[] pLat = new float[WIND_N], pLon = new float[WIND_N], pAge = new float[WIND_N],
                 pLife = new float[WIND_N], pTrail = new float[WIND_N * TRAIL * 3];
@@ -550,23 +568,8 @@ final class GlobeView extends GLSurfaceView {
             Bitmap icons = icons(64);
             iconTex = upload(icons);
             icons.recycle();
-            // The real sky, once: HYG stars and Messier objects (assets/sky.csv).
-            if (skyProg != 0) {
-                try (InputStream in = ctx.getAssets().open("sky.csv")) {
-                    float[] data = Sky.parse(in, density);
-                    skyCount = data.length / Sky.STRIDE;
-                    if (skyCount > 0) {
-                        int[] ids = new int[1];
-                        GLES20.glGenBuffers(1, ids, 0);
-                        skyVbo = ids[0];
-                        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, skyVbo);
-                        GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, data.length * 4, floats(data), GLES20.GL_STATIC_DRAW);
-                        GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
-                    }
-                } catch (IOException e) {
-                    android.util.Log.w("TvHome", "globe: no sky catalogue", e);
-                }
-            }
+            skyVbo = skyCount = 0; // the stars load in weather(), once their catalogue is downloaded
+            skyMade = -1;
             // Empty until their data is in (no clouds, snow or aurora).
             cloudTex = bytes(0, GLES20.GL_LUMINANCE, 1, 1, new byte[1]);
             snowTex = bytes(0, GLES20.GL_ALPHA, 1, 1, new byte[1]);
@@ -609,7 +612,7 @@ final class GlobeView extends GLSurfaceView {
             float[] sunView = mul(toView, sun);
 
             // The sky, behind everything: real stars and deep-sky objects, dim for burn-in.
-            if (on.sky) sky(skyToView(from, tilt), cx, cy, radius);
+            if (on.sky) sky(skyToView(from, tilt), Globe.toEcliptic(sun, now), Sky.moonDirection(now), cx, cy, radius);
 
             // The sphere.
             GLES20.glUseProgram(globe);
@@ -709,29 +712,52 @@ final class GlobeView extends GLSurfaceView {
             GLES20.glDisable(GLES20.GL_BLEND);
         }
 
-        /** The real sky: dim stars and deep-sky objects on the far side of the globe. */
-        private void sky(float[] toView, float cx, float cy, float radius) {
-            if (skyProg == 0 || skyCount == 0) return;
+        /**
+         * The real sky: dim stars and deep-sky objects on the far side of the globe, then the Sun
+         * and the Moon where they stand (directions in the ecliptic frame), on top, the Moon last
+         * so it can cover the Sun. Those two need no download, so they show before the stars'
+         * catalogue is in.
+         */
+        private void sky(float[] toView, double[] sunEcliptic, double[] moonEcliptic, float cx, float cy,
+                         float radius) {
+            if (skyProg == 0) return;
             GLES20.glUseProgram(skyProg);
             GLES20.glUniformMatrix3fv(loc(skyProg, "u_toView"), 1, false, toView, 0);
             GLES20.glUniform2f(loc(skyProg, "u_center"), cx, cy);
             GLES20.glUniform2f(loc(skyProg, "u_screen"), width, height);
             GLES20.glUniform1f(loc(skyProg, "u_radius"), radius * SKY_SCALE);
+            float[] sunView = mul(toView, sunEcliptic), moonView = mul(toView, moonEcliptic);
+            float[] light = Sky.moonLight(new double[]{sunView[0], sunView[1], sunView[2]},
+                    new double[]{moonView[0], moonView[1], moonView[2]});
+            GLES20.glUniform3f(loc(skyProg, "u_moonLight"), light[0], light[1], light[2]);
             int pos = GLES20.glGetAttribLocation(skyProg, "a_pos"), col = GLES20.glGetAttribLocation(skyProg, "a_color"),
                     size = GLES20.glGetAttribLocation(skyProg, "a_size"), kind = GLES20.glGetAttribLocation(skyProg, "a_kind");
-            GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, skyVbo);
             int stride = Sky.STRIDE * 4;
-            GLES20.glVertexAttribPointer(pos, 3, GLES20.GL_FLOAT, false, stride, 0);
-            GLES20.glVertexAttribPointer(col, 4, GLES20.GL_FLOAT, false, stride, 12);
-            GLES20.glVertexAttribPointer(size, 1, GLES20.GL_FLOAT, false, stride, 28);
-            GLES20.glVertexAttribPointer(kind, 1, GLES20.GL_FLOAT, false, stride, 32);
             GLES20.glEnableVertexAttribArray(pos);
             GLES20.glEnableVertexAttribArray(col);
             GLES20.glEnableVertexAttribArray(size);
             GLES20.glEnableVertexAttribArray(kind);
             GLES20.glEnable(GLES20.GL_BLEND);
             GLES20.glBlendFunc(GLES20.GL_ONE, GLES20.GL_ONE_MINUS_SRC_ALPHA);
-            GLES20.glDrawArrays(GLES20.GL_POINTS, 0, skyCount);
+            if (skyCount > 0) {
+                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, skyVbo);
+                GLES20.glVertexAttribPointer(pos, 3, GLES20.GL_FLOAT, false, stride, 0);
+                GLES20.glVertexAttribPointer(col, 4, GLES20.GL_FLOAT, false, stride, 12);
+                GLES20.glVertexAttribPointer(size, 1, GLES20.GL_FLOAT, false, stride, 28);
+                GLES20.glVertexAttribPointer(kind, 1, GLES20.GL_FLOAT, false, stride, 32);
+                GLES20.glDrawArrays(GLES20.GL_POINTS, 0, skyCount);
+                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+            }
+            sunAndMoon.clear();
+            sunAndMoon.put(Sky.sun(sunEcliptic, density)).put(Sky.moon(moonEcliptic, density)).position(0);
+            GLES20.glVertexAttribPointer(pos, 3, GLES20.GL_FLOAT, false, stride, sunAndMoon);
+            sunAndMoon.position(3);
+            GLES20.glVertexAttribPointer(col, 4, GLES20.GL_FLOAT, false, stride, sunAndMoon);
+            sunAndMoon.position(7);
+            GLES20.glVertexAttribPointer(size, 1, GLES20.GL_FLOAT, false, stride, sunAndMoon);
+            sunAndMoon.position(8);
+            GLES20.glVertexAttribPointer(kind, 1, GLES20.GL_FLOAT, false, stride, sunAndMoon);
+            GLES20.glDrawArrays(GLES20.GL_POINTS, 0, 2);
             GLES20.glDisableVertexAttribArray(pos);
             GLES20.glDisableVertexAttribArray(col);
             GLES20.glDisableVertexAttribArray(size);
@@ -973,11 +999,36 @@ final class GlobeView extends GLSurfaceView {
                 byte[] mask = snowAndIce(snow, ice);
                 if (mask != null) bytes(snowTex, GLES20.GL_ALPHA, SNOW_W, SNOW_H, mask);
             }
+            long k = GlobeFeeds.sky(ctx).lastModified();
+            if (on.sky && k != skyMade) {
+                skyMade = k;
+                stars(GlobeFeeds.sky(ctx));
+            }
             int a = feeds.auroraVersion;
             byte[] grid = feeds.aurora;
             if (a != auroraMade && grid != null) {
                 auroraMade = a;
                 bytes(auroraTex, GLES20.GL_ALPHA, Globe.AURORA_W, Globe.AURORA_H, grid);
+            }
+        }
+
+        /** Fills skyVbo from the downloaded catalogue (Sky): the stars and Messier objects. */
+        private void stars(File catalogue) {
+            if (skyProg == 0 || !catalogue.isFile()) return;
+            try (InputStream in = new java.io.FileInputStream(catalogue)) {
+                float[] data = Sky.parse(in, density);
+                if (data.length == 0) return;
+                if (skyVbo == 0) {
+                    int[] ids = new int[1];
+                    GLES20.glGenBuffers(1, ids, 0);
+                    skyVbo = ids[0];
+                }
+                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, skyVbo);
+                GLES20.glBufferData(GLES20.GL_ARRAY_BUFFER, data.length * 4, floats(data), GLES20.GL_STATIC_DRAW);
+                GLES20.glBindBuffer(GLES20.GL_ARRAY_BUFFER, 0);
+                skyCount = data.length / Sky.STRIDE;
+            } catch (IOException e) {
+                android.util.Log.w("TvHome", "globe: couldn't read the sky catalogue", e);
             }
         }
 
