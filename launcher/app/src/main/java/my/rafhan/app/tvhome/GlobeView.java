@@ -40,7 +40,7 @@ import javax.microedition.khronos.opengles.GL10;
  * Drawn with OpenGL ES 2.0, which every Android TV has: a sphere mesh whose vertices carry
  * their spot on the two maps and the sun's height there (worked out at high precision, so it
  * looks the same on GPUs with only medium precision per pixel), then the atmosphere on a square
- * around it, then the dots as GL points.
+ * around it, then the surface dots and satellites at their orbital height as GL points.
  * About 20 frames a second. Text (clock, legend) is the Overlay view on top.
  *
  * Against burn-in, like the other screen savers: nothing white, the globe slides to a new
@@ -354,8 +354,8 @@ final class GlobeView extends GLSurfaceView {
     /** The sphere mesh: 144 × 72 steps of 2.5°, so its outline is round to a tenth of a pixel. */
     private static final int MESH_LON = 144, MESH_LAT = 72;
 
-    // Dots: a_pos = (x, y, z, kind) on the unit sphere, kind 0 a dot, 1 a ring, 2–4 the Kaaba,
-    // ISS satellite, person, Tiangong satellite and Hubble icons (from the icon texture, eight cells wide). Hidden behind the globe, faded at its edge.
+    // Dots: a_pos = (x, y, z, kind). Surface markers are on the unit sphere; orbital points
+    // carry their actual position in Earth radii, and are occluded by the sphere per pixel.
     private static final String DOT_VS =
             "attribute vec4 a_pos;\n"
                     + "attribute vec4 a_color;\n"
@@ -365,22 +365,36 @@ final class GlobeView extends GLSurfaceView {
                     + "uniform float u_radius;\n"
                     + "varying vec4 v_color;\n"
                     + "varying float v_kind;\n"
+                    + "varying float v_orbit, v_depth;\n"
                     + "void main() {\n"
                     + "  vec3 v = u_toView * a_pos.xyz;\n"
+                    + "  bool orbital = a_pos.w > 2.5 && a_pos.w < 3.5 || a_pos.w > 4.5;\n"
                     + "  vec2 px = u_center + v.xy * u_radius;\n"
                     + "  gl_Position = vec4(px / u_screen * 2.0 - 1.0, 0.0, 1.0);\n"
                     + "  gl_PointSize = a_size;\n"
-                    + "  v_color = vec4(a_color.rgb, a_color.a * smoothstep(0.0, 0.12, v.z));\n"
+                    + "  v_color = vec4(a_color.rgb, a_color.a * (orbital ? 1.0 : smoothstep(0.0, 0.12, v.z)));\n"
                     + "  v_kind = a_pos.w;\n"
+                    + "  v_orbit = orbital ? 1.0 : 0.0;\n"
+                    + "  v_depth = v.z;\n"
                     + "}\n";
 
     private static final String DOT_FS =
-            "precision mediump float;\n"
+            "#ifdef GL_FRAGMENT_PRECISION_HIGH\nprecision highp float;\n#else\nprecision mediump float;\n#endif\n"
                     + "uniform sampler2D u_icons;\n"
+                    + "uniform vec2 u_mid;\n"
+                    + "uniform float u_rimRadius;\n"
                     + "varying vec4 v_color;\n"
                     + "varying float v_kind;\n"
+                    + "varying float v_orbit, v_depth;\n"
                     + "void main() {\n"
-                    + "  if (v_kind > 1.5) {\n" // the icons are side by side in one texture
+                    // A satellite in front of the sphere is visible over the continents; a far-side
+                    // one is hidden only where the sphere actually covers this pixel of its icon.
+                    + "  if (v_orbit > 0.5) {\n"
+                    + "    vec2 p = (gl_FragCoord.xy - u_mid) / u_rimRadius;\n"
+                    + "    float r2 = dot(p, p);\n"
+                    + "    if (r2 < 1.0 && v_depth < sqrt(1.0 - r2)) discard;\n"
+                    + "  }\n"
+                    + "  if (v_kind > 1.5 && v_kind < 6.5) {\n" // the icons are side by side in one texture
                     + "    gl_FragColor = texture2D(u_icons, vec2((v_kind - 2.0 + gl_PointCoord.x) * 0.125, gl_PointCoord.y)) * v_color.a;\n"
                     + "    return;\n"
                     + "  }\n"
@@ -391,7 +405,8 @@ final class GlobeView extends GLSurfaceView {
                     + "  gl_FragColor = vec4(v_color.rgb * a, a);\n" // premultiplied, like the icons
                     + "}\n";
 
-    static final float DOT = 0, RING = 1, KAABA = 2, SATELLITE = 3, PERSON = 4, SATELLITE_CN = 5, HUBBLE = 6;
+    static final float DOT = 0, RING = 1, KAABA = 2, SATELLITE = 3, PERSON = 4, SATELLITE_CN = 5, HUBBLE = 6,
+            ORBIT_TRAIL = 7;
 
     // Wind streaks: line segments between points on the sphere, a_pos = (x, y, z, alpha).
     private static final String WIND_VS =
@@ -586,8 +601,10 @@ final class GlobeView extends GLSurfaceView {
             GLES20.glUniform1i(loc(dots, "u_icons"), 2);
             GLES20.glUniformMatrix3fv(loc(dots, "u_toView"), 1, false, toView, 0);
             GLES20.glUniform2f(loc(dots, "u_center"), cx, cy);
+            GLES20.glUniform2f(loc(dots, "u_mid"), cx, cy);
             GLES20.glUniform2f(loc(dots, "u_screen"), width, height);
             GLES20.glUniform1f(loc(dots, "u_radius"), radius);
+            GLES20.glUniform1f(loc(dots, "u_rimRadius"), radius);
             int pos = GLES20.glGetAttribLocation(dots, "a_pos"), col = GLES20.glGetAttribLocation(dots, "a_color"),
                     size = GLES20.glGetAttribLocation(dots, "a_size");
             points.position(0);
@@ -733,7 +750,7 @@ final class GlobeView extends GLSurfaceView {
             pCount[i] = 0;
         }
 
-        /** A satellite: where it is now, and its path over the last 10 minutes (fading). */
+        /** A satellite and its fading 10-minute trail in the same inertial frame as this view. */
         private void station(Orbit o, int which, long now, float[] rgb, float kind) {
             if (o == null) return;
             List<double[]> trail = trails[which];
@@ -741,13 +758,14 @@ final class GlobeView extends GLSurfaceView {
                 trailSecond[which] = now / 1000;
                 trail.clear();
                 for (int i = TRAIL_DOTS; i >= 1; i--) {
-                    double[] at = o.below(now - i * 20_000L);
-                    if (at != null) trail.add(Globe.vector(at[0], at[1]));
+                    double[] at = o.earthFixed(now - i * 20_000L, now);
+                    if (at != null) trail.add(at);
                 }
             }
-            for (int i = 0; i < trail.size(); i++) dot(trail.get(i), DOT, rgb, 0.12f + 0.45f * i / trail.size(), dp(2.5f));
-            double[] at = o.below(now);
-            if (at != null) dot(Globe.vector(at[0], at[1]), kind, rgb, 0.95f, dp(17));
+            for (int i = 0; i < trail.size(); i++)
+                dot(trail.get(i), ORBIT_TRAIL, rgb, 0.12f + 0.45f * i / trail.size(), dp(2.5f));
+            double[] at = o.earthFixed(now, now);
+            if (at != null) dot(at, kind, rgb, 0.95f, dp(19));
         }
 
         private void dot(double[] v, float kind, float[] rgb, float alpha, float size) {

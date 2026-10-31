@@ -71,4 +71,20 @@ public class OrbitTest {
         double ra = Math.toDegrees(Math.atan2(-576.8817, 6769.8098));
         assertEquals(Globe.wrap(ra - Globe.siderealDegrees(iss.epochMs)), at[1], 0.01);
     }
+
+    @Test
+    public void actualHeightAndTrailUseTheCurrentEarthFrame() {
+        Orbit iss = Orbit.parse(ISS).get(0);
+        double[] at = iss.earthFixed(iss.epochMs, iss.epochMs);
+        assertNotNull(at);
+        assertEquals(Math.hypot(6769.8098, -576.8817) / 6378.135,
+                Math.sqrt(at[0] * at[0] + at[1] * at[1] + at[2] * at[2]), 0.00001);
+        assertEquals(iss.below(iss.epochMs)[1], Math.toDegrees(Math.atan2(at[0], at[2])), 0.01);
+        // A past trail point stays inertially fixed while the Earth turns beneath it.
+        long later = iss.epochMs + 600_000;
+        double[] inLaterFrame = iss.earthFixed(iss.epochMs, later);
+        assertEquals(Globe.wrap(Globe.siderealDegrees(iss.epochMs) - Globe.siderealDegrees(later)),
+                Globe.wrap(Math.toDegrees(Math.atan2(inLaterFrame[0], inLaterFrame[2]))
+                        - Math.toDegrees(Math.atan2(at[0], at[2]))), 0.00001);
+    }
 }

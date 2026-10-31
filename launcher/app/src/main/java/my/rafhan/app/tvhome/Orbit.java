@@ -189,6 +189,17 @@ final class Orbit {
         return new double[]{r * (xmx * sinsu + cnod * cossu), r * (xmy * sinsu + snod * cossu), r * sini * sinsu};
     }
 
+    /** Actual satellite position in Globe's Earth-fixed axes, in Earth radii. For a trail,
+     * rotate every past position into the globe's frame at the current viewing time. */
+    double[] earthFixed(long atMs, long viewMs) {
+        double[] r = position((atMs - epochMs) / 60_000.0);
+        if (r == null) return null;
+        double sidereal = Math.toRadians(Globe.siderealDegrees(viewMs));
+        double c = Math.cos(sidereal), s = Math.sin(sidereal);
+        return new double[]{(-r[0] * s + r[1] * c) / RE, r[2] / RE,
+                (r[0] * c + r[1] * s) / RE};
+    }
+
     /** The spot under the satellite at this moment: {latitude, longitude} in degrees, or null. */
     double[] below(long epochMs) {
         double[] r = position((epochMs - this.epochMs) / 60_000.0);
