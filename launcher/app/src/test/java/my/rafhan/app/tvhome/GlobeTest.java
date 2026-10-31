@@ -188,4 +188,19 @@ public class GlobeTest {
         assertEquals(0, Globe.parseQuakes("{}").size());
         assertEquals(0, Globe.parseQuakes(null).size());
     }
+
+    @Test
+    public void realTimesWanderNeverOutpacesTheEarth() {
+        double fastest = 0, maxLon = 0, maxTilt = 0;
+        long t0 = java.time.Instant.parse("2026-10-31T00:00:00Z").toEpochMilli();
+        for (long t = t0; t < t0 + 8 * 3_600_000L; t += 60_000) {
+            double[] a = GlobeView.wander(t), b = GlobeView.wander(t + 60_000);
+            fastest = Math.max(fastest, Math.abs(b[0] - a[0]));
+            maxLon = Math.max(maxLon, Math.abs(a[0]));
+            maxTilt = Math.max(maxTilt, Math.abs(a[1]));
+        }
+        assertTrue(fastest < 360.0 / 1436); // degrees a minute: the Earth turns once a sidereal day
+        assertTrue(maxLon > 7.9 && maxLon <= 8); // it does wander, by up to 8° sideways…
+        assertTrue(maxTilt > 19.9 && maxTilt <= 20); // …and 20° north and south
+    }
 }

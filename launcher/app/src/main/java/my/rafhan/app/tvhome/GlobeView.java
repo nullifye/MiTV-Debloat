@@ -60,8 +60,11 @@ final class GlobeView extends GLSurfaceView {
     static final class Layers {
         boolean sky, lines, makkah, zone, lights, clouds, snow, aurora, wind, glint, rim, edits, quakes, iss, tiangong, hubble,
                 legend;
+        /** Turning at the Earth's own speed (Settings → Turning) rather than round it every 2 minutes. */
+        boolean realTime;
 
         void read(Context ctx) {
+            realTime = LauncherSettings.choice(ctx, LauncherSettings.GLOBE_SPIN) == LauncherSettings.SPIN_REAL_TIME;
             sky = LauncherSettings.flag(ctx, LauncherSettings.GLOBE_SKY);
             lines = LauncherSettings.flag(ctx, LauncherSettings.GLOBE_PRAYER_LINES);
             makkah = LauncherSettings.flag(ctx, LauncherSettings.GLOBE_MAKKAH);
@@ -95,6 +98,15 @@ final class GlobeView extends GLSurfaceView {
     private final double homeLat, homeLon;
     private final List<double[]> qibla;
     private static final long IDLE_MS = 10_000; // after the last arrow, it turns on its own again
+    /**
+     * Real time's wander, against burn-in: there the Sun stands still, so the lit half and the sun
+     * glint would sit on the same pixels for hours. The viewpoint sways instead: ±20° of tilt
+     * over about 1½ hours and ±8° sideways over 4 hours, which carries them across about a tenth
+     * of the screen. Sideways it peaks at 0.21° a minute, under the Earth's own 0.25°, so the
+     * Earth never looks to turn backwards.
+     */
+    static final double WANDER_TILT = 20, WANDER_LON = 8;
+    static final long WANDER_TILT_MS = 97 * 60_000L, WANDER_LON_MS = 240 * 60_000L;
     private static final double STEP = 10, REPEAT_STEP = 4, MAX_TILT = 70; // degrees: a press, a repeat, the furthest tilt
     private final double startFrom;
     // Turning the arrows asked for and not yet done (degrees), and when one was last pressed (uptime).
@@ -205,6 +217,12 @@ final class GlobeView extends GLSurfaceView {
      * The same view rotation for the inertial sky: the catalogue's ecliptic vectors are fixed,
      * so only the camera's longitude and tilt turn them (no sidereal rotation).
      */
+    /** Real time's wander at a moment: {sideways, tilt} in degrees (see WANDER_TILT). */
+    static double[] wander(long epochMs) {
+        return new double[]{WANDER_LON * Math.sin(2 * Math.PI * epochMs / WANDER_LON_MS),
+                WANDER_TILT * Math.sin(2 * Math.PI * epochMs / WANDER_TILT_MS)};
+    }
+
     static float[] skyToView(double from, double tilt) {
         float[] m = new float[9];
         double f = Math.toRadians(from), t = Math.toRadians(tilt);
@@ -532,6 +550,7 @@ final class GlobeView extends GLSurfaceView {
         private long cloudsMade = -1, snowMade = -1;
         private int auroraMade = -1;
         private double from = startFrom, tilt;
+        private double wandered = Double.NaN; // Real time: the sideways wander already in from
         private long lastUp;
         private final Layers on = new Layers();
         private final FloatBuffer corners = floats(new float[]{-1, -1, 1, -1, -1, 1, 1, 1});
@@ -597,15 +616,23 @@ final class GlobeView extends GLSurfaceView {
             float cx = width / 2f + d[0], cy = height / 2f - d[1];
             // The surface moves west to east (left to right), as seen from space.
             // Starts facing your zone; on its own the viewpoint circles westward (the land passes west
-            // to east) at a level tilt. The arrows take over for a while.
+            // to east) at a level tilt. In real time it stays put instead, so the Earth turns under
+            // it at its own speed (sidereal time, once a day) and the stars stand still. The arrows
+            // take over for a while.
             float dt = lastUp == 0 ? 0 : Math.min(0.1f, (up - lastUp) / 1000f);
             lastUp = up;
             double[] turn = takeTurn(dt);
             from += turn[0];
             tilt = Math.max(-MAX_TILT, Math.min(MAX_TILT, tilt + turn[1]));
-            if (up - lastInput > IDLE_MS) {
-                from -= 360.0 * dt * 1000 / SPIN_MS;
-                tilt -= tilt * Math.min(1, dt * 1.5); // eases back to level
+            double[] w = wander(now);
+            if (Double.isNaN(wandered)) wandered = w[0];
+            boolean idle = up - lastInput > IDLE_MS;
+            if (idle && !on.realTime) from -= 360.0 * dt * 1000 / SPIN_MS;
+            if (idle && on.realTime) from += w[0] - wandered; // only the change: the arrows' turn stays
+            wandered = w[0];
+            if (idle) {
+                double level = on.realTime ? w[1] : 0;
+                tilt -= (tilt - level) * Math.min(1, dt * 1.5); // eases back to level (or the wander's tilt)
             }
             float[] toView = earthToView(now, from, tilt), toEarth = transpose(toView);
             double[] sub = Globe.subsolar(now), sun = Globe.vector(sub[0], sub[1]);

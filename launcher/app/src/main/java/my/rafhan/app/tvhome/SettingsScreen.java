@@ -85,6 +85,7 @@ final class SettingsScreen {
         String id;         // wallpaper list: what this row shows
         boolean thumbSlot; // wallpaper list: a small preview on the left
         Bitmap thumb;
+        String heading;    // a separator above the row, with this small title (never focused)
 
         Row(int type, String label) {
             this.type = type;
@@ -412,6 +413,12 @@ final class SettingsScreen {
         now.action = host::startScreenSaver;
         out.add(now);
         if (ScreenSaver.globe(ctx).equals(current)) {
+            Row turning = choice(LauncherSettings.GLOBE_SPIN, "Turning",
+                    "A spin every 2 minutes, or the Earth's real speed",
+                    new int[]{LauncherSettings.SPIN_TWO_MINUTES, LauncherSettings.SPIN_REAL_TIME},
+                    new String[]{"Every 2 minutes", "Real time"});
+            turning.heading = "Globe";
+            out.add(turning);
             out.add(toggle(LauncherSettings.GLOBE_PRAYER_LINES, "Prayer lines", "Where it's Maghrib and Fajr right now"));
             out.add(toggle(LauncherSettings.GLOBE_MAKKAH, "Makkah and qibla", "The Kaaba, and the way to it from your zone"));
             out.add(toggle(LauncherSettings.GLOBE_ZONE, "Your zone", "Where your prayer zone is"));
@@ -842,7 +849,10 @@ final class SettingsScreen {
         rowViews.clear();
         List<Row> list = current();
         for (int i = 0; i < list.size(); i++) {
-            View v = rowView(list.get(i));
+            Row r = list.get(i);
+            if (r.heading != null) rowList.addView(heading(r.heading), new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+            View v = rowView(r);
             rowList.addView(v, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
             rowViews.add(v);
@@ -855,6 +865,23 @@ final class SettingsScreen {
     private void scrollToFocus() {
         View f = row < rowViews.size() ? rowViews.get(row) : null;
         if (f != null) scroll.post(() -> scroll.smoothScrollTo(0, Math.max(0, f.getTop() - px(70))));
+    }
+
+    /** A thin line with a small title, between groups of rows (Row.heading). */
+    private View heading(String title) {
+        LinearLayout h = new LinearLayout(ctx);
+        h.setOrientation(LinearLayout.VERTICAL);
+        h.setPadding(px(16), px(14), px(14), px(4));
+        View line = new View(ctx);
+        line.setBackgroundColor(0x26FFFFFF);
+        h.addView(line, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, px(1))));
+        TextView t = text(12, 500, DIM);
+        t.setText(title.toUpperCase(Locale.ROOT));
+        t.setLetterSpacing(0.08f);
+        LinearLayout.LayoutParams tl = wrap();
+        tl.topMargin = px(12);
+        h.addView(t, tl);
+        return h;
     }
 
     private View rowView(Row r) {

@@ -37,6 +37,9 @@ final class LauncherSettings {
             GLOBE_QUAKES = "globe_quakes", GLOBE_ISS = "globe_iss", GLOBE_TIANGONG = "globe_tiangong",
             GLOBE_HUBBLE = "globe_hubble", GLOBE_LEGEND = "globe_legend", GLOBE_WIND = "globe_wind",
             GLOBE_GLINT = "globe_glint", GLOBE_RIM = "globe_rim", GLOBE_SKY = "globe_sky";
+    /** How the Globe turns on its own (a choice): SPIN_TWO_MINUTES or SPIN_REAL_TIME. */
+    static final String GLOBE_SPIN = "globe_spin";
+    static final int SPIN_TWO_MINUTES = 0, SPIN_REAL_TIME = 1;
 
     /** What a status-bar slot shows. */
     static final int SLOT_NONE = 0, SLOT_SPEED = 1, SLOT_UPTIME = 2, SLOT_CLOCK = 3, SLOT_ELAPSED = 4;
