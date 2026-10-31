@@ -41,7 +41,7 @@ import javax.microedition.khronos.opengles.GL10;
  * their spot on the two maps and the sun's height there (worked out at high precision, so it
  * looks the same on GPUs with only medium precision per pixel), then the atmosphere on a square
  * around it, then the dots as GL points.
- * About 30 frames a second. Text (clock, legend) is the Overlay view on top.
+ * About 20 frames a second. Text (clock, legend) is the Overlay view on top.
  *
  * Against burn-in, like the other screen savers: nothing white, the globe slides to a new
  * offset every minute and the text jumps to another corner.
@@ -145,7 +145,7 @@ final class GlobeView extends GLSurfaceView {
         @Override
         public void doFrame(long frameTimeNanos) {
             if (!pacing) return;
-            if ((frame++ & 1) == 0) requestRender(); // every other frame: ~30 fps on a 60 Hz TV
+            if (frame++ % 3 == 0) requestRender(); // ~20 fps on a 60 Hz TV; the slow orbital motion stays smooth
             Choreographer.getInstance().postFrameCallback(this);
         }
     };
@@ -414,7 +414,8 @@ final class GlobeView extends GLSurfaceView {
                     + "}\n";
 
     // The wind animation: particles carried by the wind, each with a short fading trail.
-    private static final int WIND_N = 900, TRAIL = 8, TRAIL_EVERY = 3; // trail point every 3 frames (~0.1 s)
+    private static final int WIND_N = 900, TRAIL = 8;
+    private static final long TRAIL_EVERY_NS = 100_000_000L; // trail point about every 0.1 s, independent of frame rate
     /** Degrees a second per m/s of wind: 10 m/s moves 4° a second (about 35 px on a 1080p TV). */
     private static final float WIND_PACE = 0.4f;
 
@@ -428,6 +429,7 @@ final class GlobeView extends GLSurfaceView {
         private FloatBuffer windBuf;
         private boolean windStarted;
         private long windFrameNs;
+        private long windTrailNs;
         // What the weather textures were made from: the files' times, the aurora forecast's count.
         private long cloudsMade = -1, snowMade = -1;
         private int auroraMade = -1;
@@ -487,7 +489,7 @@ final class GlobeView extends GLSurfaceView {
         public void onDrawFrame(GL10 unused) {
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
             if (globe == 0 || glow == 0 || dayTex == 0 || nightTex == 0) return;
-            if (frames++ % 300 == 0) weather(); // every 10 s or so: new clouds, snow, aurora?
+            if (frames++ % 300 == 0) weather(); // every 15 s or so at 20 fps: new clouds, snow, aurora?
             long up = SystemClock.uptimeMillis(), now = System.currentTimeMillis();
             float[] d = drift(up);
             float radius = RADIUS * Math.min(width, height);
@@ -656,7 +658,8 @@ final class GlobeView extends GLSurfaceView {
                     pAge[i] = random.nextFloat() * pLife[i]; // not all at once
                 }
             }
-            boolean mark = frames % TRAIL_EVERY == 0;
+            boolean mark = ns - windTrailNs >= TRAIL_EVERY_NS;
+            if (mark) windTrailNs = ns;
             float pace = (float) Math.toRadians(WIND_PACE) * dt;
             int n = 0;
             for (int i = 0; i < WIND_N; i++) {
