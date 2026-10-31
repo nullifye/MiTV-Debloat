@@ -11,6 +11,7 @@ mod flows;
 mod github;
 mod log;
 mod plan;
+mod power;
 mod report;
 mod screens;
 mod setup;

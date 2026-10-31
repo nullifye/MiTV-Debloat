@@ -591,6 +591,7 @@ fn draw_modal(f: &mut Frame, app: &App, area: Rect) {
                 Input::PairCode(_) => "123456",
                 Input::PairConnect => "192.168.1.50:41235",
                 Input::ApkPath => "",
+                Input::PowerMac(_) => "",
             };
             let t = vec![
                 Line::from(dim(hint)),

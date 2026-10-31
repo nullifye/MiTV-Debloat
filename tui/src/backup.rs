@@ -299,6 +299,9 @@ impl Store {
 pub struct Config {
     #[serde(default)]
     pub recent_tvs: Vec<String>,
+    /// Keyed by ADB address so wake methods remain available when the TV is asleep.
+    #[serde(default)]
+    pub power: std::collections::BTreeMap<String, crate::power::TvPowerConfig>,
 }
 
 impl Config {
@@ -315,6 +318,21 @@ impl Config {
 
     pub fn save(&self, store: &Store) -> Result<()> {
         fs::create_dir_all(&store.app_dir)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            use std::os::unix::fs::PermissionsExt;
+            let path = Self::path(store);
+            let mut file = fs::OpenOptions::new()
+                .write(true)
+                .create(true)
+                .truncate(true)
+                .mode(0o600)
+                .open(&path)?;
+            file.set_permissions(fs::Permissions::from_mode(0o600))?;
+            file.write_all(serde_json::to_string_pretty(self)?.as_bytes())?;
+        }
+        #[cfg(not(unix))]
         fs::write(Self::path(store), serde_json::to_string_pretty(self)?)?;
         Ok(())
     }
@@ -490,5 +508,38 @@ mod tests {
         c.remember("b:5555");
         c.remember("a:5555");
         assert_eq!(c.recent_tvs, vec!["a:5555", "b:5555"]);
+    }
+
+    #[test]
+    fn power_settings_are_per_tv_and_kept_private() {
+        let d = tmp("power-settings");
+        let store = Store::at(&d);
+        let mut config = Config::default();
+        config.power.insert(
+            "192.168.0.44:5555".into(),
+            crate::power::TvPowerConfig {
+                wifi_mac: "02:11:22:33:44:55".into(),
+                ..Default::default()
+            },
+        );
+        config.save(&store).unwrap();
+        let loaded = Config::load(&store);
+        assert_eq!(
+            loaded.power["192.168.0.44:5555"].wifi_mac,
+            "02:11:22:33:44:55"
+        );
+        assert!(!loaded.power.contains_key("192.168.0.45:5555"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(d.join("config.json"))
+                    .unwrap()
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
     }
 }

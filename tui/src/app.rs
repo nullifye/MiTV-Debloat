@@ -9,6 +9,7 @@ use crate::flows::{self, ApkSource};
 use crate::github::Release;
 use crate::log::{Level, Log, LogEntry};
 use crate::plan::{self, Outcome, Plan};
+use crate::power::{self, State, WakeKind};
 use crate::screens::{Act, Kind};
 use crate::setup;
 use crate::worker::{Event, Job, PkgRow, Request, Status};
@@ -39,6 +40,9 @@ pub enum Screen {
     Tweaks,
     Undo,
     Tools,
+    Power,
+    ConfirmWake,
+    ConfirmStandby,
     Logcat,
     Confirm,
     Running,
@@ -63,6 +67,7 @@ pub enum Input {
     PairAddress,
     PairCode(String),
     PairConnect,
+    PowerMac(WakeKind),
 }
 
 pub enum Modal {
@@ -155,6 +160,8 @@ pub struct App {
     pub quit_after_plan: bool,
     /// The pairing address last used (Wireless debugging).
     pair_addr: Option<String>,
+    pub power_state: Option<(State, String, Instant)>,
+    pub pending_wake: Option<WakeKind>,
 }
 
 impl App {
@@ -225,6 +232,8 @@ impl App {
             plan_origin: Screen::Home,
             quit_after_plan: false,
             pair_addr: None,
+            power_state: None,
+            pending_wake: None,
         }
     }
 
@@ -234,6 +243,29 @@ impl App {
 
     pub fn tv(&self) -> Option<&device::TvInfo> {
         self.status.as_ref()?.tv.as_ref()
+    }
+
+    pub fn power_target(&self) -> Option<&str> {
+        self.target
+            .as_deref()
+            .or(self.adb.serial.as_deref())
+            .or_else(|| self.config.recent_tvs.first().map(String::as_str))
+    }
+
+    pub fn power_config(&self) -> Option<&power::TvPowerConfig> {
+        self.config.power.get(self.power_target()?)
+    }
+
+    pub fn detected_mac(&self, kind: WakeKind) -> Option<&str> {
+        let tv = self.tv()?;
+        if tv.state != "device" || self.power_target()? != tv.serial {
+            return None;
+        }
+        match kind {
+            WakeKind::Wifi => tv.wifi_mac.as_deref(),
+            WakeKind::Ethernet => tv.ethernet_mac.as_deref(),
+            WakeKind::Adb => None,
+        }
     }
 
     pub fn refusal(&self, pkg: &str) -> Option<String> {
@@ -301,6 +333,12 @@ impl App {
                     self.send(Job::LoadPackages);
                 }
             }
+            Screen::Power => {
+                if let Some(addr) = self.power_target().map(str::to_string) {
+                    self.power_state = Some((State::Unknown, "Checking…".into(), Instant::now()));
+                    self.send(Job::PowerCheck(addr));
+                }
+            }
             _ => {}
         }
     }
@@ -321,6 +359,9 @@ impl App {
 
     /// First screen: get adb, then reconnect to the last TV or look for one.
     pub fn start(&mut self, tv: Option<String>) {
+        if let Some(addr) = &tv {
+            self.target = Some(addr.clone());
+        }
         // Also tells whether this app has a newer version (the header says so).
         if !self.releases_loaded {
             self.send(Job::FetchReleases);
@@ -346,6 +387,7 @@ impl App {
 
     fn connect(&mut self, addr: String) {
         self.target = Some(addr.clone());
+        self.power_state = None;
         self.conn = Conn::Connecting;
         self.back = vec![Screen::FindTv];
         self.enter(Screen::Connecting);
@@ -421,6 +463,42 @@ impl App {
                 Err(e) => self.notice(format!("Couldn't save the report: {e:#}")),
             },
             Act::Go(s) => self.go(s),
+            Act::CheckPower => {
+                if let Some(addr) = self.power_target().map(str::to_string) {
+                    self.power_state = Some((State::Unknown, "Checking…".into(), Instant::now()));
+                    self.send(Job::PowerCheck(addr));
+                }
+            }
+            Act::SetPowerMac(kind) => {
+                let old = self.power_config().map(|c| if kind == WakeKind::Wifi { &c.wifi_mac } else { &c.ethernet_mac }).cloned().unwrap_or_default();
+                let old = if old.is_empty() { self.detected_mac(kind).unwrap_or("").to_string() } else { old };
+                self.input(Input::PowerMac(kind), "TV network MAC", "Find the Wi-Fi/Ethernet MAC in the TV's network settings. Six hex pairs, e.g. 02:AA:BB:CC:DD:EE. Empty clears it.", old);
+            }
+            Act::Standby => self.go(Screen::ConfirmStandby),
+            Act::SendStandby => {
+                if let Some(addr) = self.power_target().map(str::to_string) {
+                    self.go_back();
+                    self.send(Job::Standby(addr));
+                }
+            }
+            Act::UseDetectedMac(kind) => {
+                if let (Some(addr), Some(mac)) = (self.power_target().map(str::to_string), self.detected_mac(kind).map(str::to_string)) {
+                    let c = self.config.power.entry(addr).or_default();
+                    if kind == WakeKind::Wifi { c.wifi_mac = mac; } else { c.ethernet_mac = mac; }
+                    if let Err(e) = self.config.save(&self.store) { self.notice(format!("Couldn't save power settings: {e}")); }
+                } else { self.notice("Could not read this TV's MAC. Enter it manually from the network settings."); }
+            }
+            Act::Wake(kind) => {
+                self.pending_wake = Some(kind);
+                self.go(Screen::ConfirmWake);
+            }
+            Act::SendWake => {
+                if let (Some(addr), Some(kind)) = (self.power_target().map(str::to_string), self.pending_wake) {
+                    let cfg = self.config.power.get(&addr).cloned().unwrap_or_default();
+                    self.go_back();
+                    self.send(Job::Wake(addr, kind, cfg));
+                }
+            }
             Act::DownloadAdb => {
                 self.adb_progress = (0, 0);
                 self.enter(Screen::GettingAdb);
@@ -631,6 +709,25 @@ impl App {
                 Some(a) => self.connect(a),
                 None => self.notice("Type the address with its port, e.g. 192.168.1.50:41235"),
             },
+            Input::PowerMac(kind) => {
+                if !v.is_empty()
+                    && let Err(e) = power::parse_mac(&v)
+                {
+                    self.notice(e);
+                    return;
+                }
+                if let Some(addr) = self.power_target().map(str::to_string) {
+                    let c = self.config.power.entry(addr).or_default();
+                    if kind == WakeKind::Wifi {
+                        c.wifi_mac = v;
+                    } else {
+                        c.ethernet_mac = v;
+                    }
+                    if let Err(e) = self.config.save(&self.store) {
+                        self.notice(format!("Couldn't save power settings: {e}"));
+                    }
+                }
+            }
         }
     }
 
@@ -701,6 +798,8 @@ impl App {
             Event::Paired(Err(e)) => self.notice(format!(
                 "Pairing didn't work: {e}\n\nCheck the code and address, and try again."
             )),
+            Event::PowerStatus(s, why) => self.power_state = Some((s, why, Instant::now())),
+            Event::PowerActionResult(msg) => self.notice(msg),
             Event::Packages(rows, guard) => {
                 self.pkgs = rows;
                 self.guard = guard;
@@ -815,6 +914,17 @@ impl App {
 
     /// Called every frame: while waiting for "Allow USB debugging?", keep asking the TV.
     pub fn tick(&mut self) {
+        if self.screen == Screen::Power
+            && self.busy.is_none()
+            && self
+                .power_state
+                .as_ref()
+                .is_none_or(|(_, _, at)| at.elapsed() > Duration::from_secs(20))
+            && let Some(addr) = self.power_target().map(str::to_string)
+        {
+            self.power_state = Some((State::Unknown, "Checking…".into(), Instant::now()));
+            self.send(Job::PowerCheck(addr));
+        }
         if self.screen == Screen::Allow
             && self.busy.is_none()
             && self.last_poll.elapsed() > Duration::from_secs(2)

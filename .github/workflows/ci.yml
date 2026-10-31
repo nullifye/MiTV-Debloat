@@ -87,7 +87,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
-          components: clippy, rustfmt
+          components: clippy, rustfmt, llvm-tools-preview
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -118,6 +118,32 @@ jobs:
 
       - name: Release build
         run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # Cargo's strip=true is a fallback; explicitly strip the uploaded binary on each host.
+      # Android binaries need the NDK's ELF-aware tool, not the Linux host's strip.
+      - name: Strip Linux / Android release binary
+        if: runner.os == 'Linux'
+        run: |
+          binary="target/${{ matrix.target }}/release/${{ matrix.exe }}"
+          if [ -n '${{ matrix.ndk }}' ]; then
+            "$ANDROID_NDK_LATEST_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded "$binary"
+          else
+            strip --strip-unneeded "$binary"
+          fi
+
+      # On macOS, the system stripper also works when rust-objcopy cannot load libLLVM.dylib.
+      - name: Strip macOS release binary
+        if: runner.os == 'macOS'
+        run: strip -S -x target/${{ matrix.target }}/release/${{ matrix.exe }}
+
+      - name: Strip Windows release executable
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $sysroot = (rustc --print sysroot).Trim()
+          $strip = Join-Path $sysroot 'lib/rustlib/${{ matrix.target }}/bin/llvm-strip.exe'
+          & $strip --strip-unneeded 'target/${{ matrix.target }}/release/${{ matrix.exe }}'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - uses: actions/upload-artifact@v4
         with:

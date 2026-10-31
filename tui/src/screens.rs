@@ -7,6 +7,7 @@ use crate::device::{self, FoundKind};
 use crate::flows;
 use crate::github::{self, human_size};
 use crate::plan::{self, Outcome};
+use crate::power::{State, WakeKind};
 use crate::setup;
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -66,6 +67,13 @@ pub enum Act {
     ShowRemoteAddress,
     RemoveLauncher,
     Reboot,
+    CheckPower,
+    SetPowerMac(WakeKind),
+    UseDetectedMac(WakeKind),
+    Wake(WakeKind),
+    SendWake,
+    Standby,
+    SendStandby,
     // plans
     Start,
     ToggleCommands,
@@ -213,6 +221,9 @@ impl App {
             Screen::Tweaks => self.tweaks(),
             Screen::Undo => self.undo(),
             Screen::Tools => self.tools(),
+            Screen::Power => self.power_view(),
+            Screen::ConfirmWake => self.confirm_wake(),
+            Screen::ConfirmStandby => self.confirm_standby(),
             Screen::Logcat => self.logcat_view(),
             Screen::Confirm => self.confirm(),
             Screen::Running => self.running(),
@@ -242,6 +253,13 @@ impl App {
                 "Once it's installed",
                 Act::CheckAdbAgain,
             )));
+            if self.power_target().is_some() {
+                v.push(choice(
+                    "Wake a saved TV",
+                    "Sending WoWiFi/WOL does not need adb",
+                    Act::Go(Screen::Power),
+                ));
+            }
             v.push(choice("Quit", "", Act::Quit));
             return v;
         }
@@ -272,6 +290,13 @@ impl App {
             "Shows the command for your computer.",
             Act::Go(Screen::ManualAdb),
         ));
+        if self.power_target().is_some() {
+            v.push(choice(
+                "Wake a saved TV",
+                "Sending WoWiFi/WOL does not need adb",
+                Act::Go(Screen::Power),
+            ));
+        }
         v.push(choice("Quit", "", Act::Quit));
         v
     }
@@ -385,6 +410,13 @@ impl App {
             "Settings → Network & Internet on the TV shows it, e.g. 192.168.1.50",
             Act::TypeAddress,
         ));
+        if self.power_target().is_some() {
+            v.push(choice(
+                "Wake a saved TV",
+                "Power status and wake methods work without a current ADB connection",
+                Act::Go(Screen::Power),
+            ));
+        }
         v.push(choice(
             "My TV shows a pairing code",
             "Newer Google TV: Developer options → Wireless debugging → Pair device with pairing code",
@@ -934,16 +966,25 @@ impl App {
     fn tools(&self) -> View {
         let mut v = View::new("More tools");
         v.push(first(choice(
+            "Press Home on the TV",
+            "Send the Home button over ADB to return to the TV's home screen",
+            Act::PressHome,
+        )));
+        v.push(choice(
             "Take a screenshot of the TV",
             format!("Saved in {}", self.store.shots.display()),
             Act::Screenshot,
-        )));
+        ));
         v.push(choice(
             "Live log from TV Home",
             "For troubleshooting: what the launcher is doing right now",
             Act::Go(Screen::Logcat),
         ));
-        v.push(choice("Press Home on the TV", "", Act::PressHome));
+        v.push(choice(
+            "TV power and wake",
+            "ADB standby/wake; Wi-Fi and wired LAN wake",
+            Act::Go(Screen::Power),
+        ));
         v.push(choice(
             "Phone remote address",
             "Control the TV from your phone's browser",
@@ -974,8 +1015,163 @@ impl App {
             "Uninstall it and make the TV's own home screen the default",
             Act::RemoveLauncher,
         ));
-        v.push(choice("Restart the TV", "", Act::Reboot));
+        v.push(choice(
+            "Restart the TV",
+            "Reboot over ADB; the TV may take a minute to come back",
+            Act::Reboot,
+        ));
         v.push(choice("Back", "", Act::Back));
+        v
+    }
+
+    fn power_view(&self) -> View {
+        let mut v = View::new("TV power and wake");
+        let Some(addr) = self.power_target() else {
+            v.say("Choose a TV first to configure its wake methods.");
+            v.push(first(choice("Back", "", Act::Back)));
+            return v;
+        };
+        v.say(format!("TV: {addr}"));
+        match &self.power_state {
+            Some((state, why, at)) => {
+                let status = format!(
+                    "{}  ·  checked {} seconds ago",
+                    state.label(),
+                    at.elapsed().as_secs()
+                );
+                match state {
+                    State::Online => v.body.push(Line::from(Span::styled(
+                        status,
+                        Style::new().fg(OK).add_modifier(Modifier::BOLD),
+                    ))),
+                    State::Offline => v.body.push(Line::from(Span::styled(
+                        status,
+                        Style::new().fg(BAD).add_modifier(Modifier::BOLD),
+                    ))),
+                    _ => v.bold(status),
+                }
+                v.dim(why.clone());
+            }
+            None => v.dim("Checking the TV…"),
+        }
+        v.gap();
+        v.push(first(choice(
+            "Check again",
+            "Read Android's power state over ADB",
+            Act::CheckPower,
+        )));
+        let adb_ready = self.adb_found
+            && self
+                .power_state
+                .as_ref()
+                .is_some_and(|(state, _, _)| *state == crate::power::State::Standby);
+        v.push(choice(
+            "Wake via ADB",
+            if adb_ready {
+                "TV is reachable in standby; sends KEYCODE_WAKEUP"
+            } else {
+                "Only available while the TV is reachable through ADB and reports Standby"
+            },
+            if adb_ready {
+                Act::Wake(WakeKind::Adb)
+            } else {
+                Act::CheckPower
+            },
+        ));
+        let online = self.adb_found
+            && self
+                .power_state
+                .as_ref()
+                .is_some_and(|(state, _, _)| *state == crate::power::State::Online);
+        v.push(choice(
+            "Standby via ADB",
+            if online {
+                "Presses Power only after rechecking the TV is awake; ADB may disconnect"
+            } else {
+                "Only available while the TV is reachable and reports Online"
+            },
+            if online {
+                Act::Standby
+            } else {
+                Act::CheckPower
+            },
+        ));
+        for kind in [WakeKind::Wifi, WakeKind::Ethernet] {
+            if let Some(mac) = self.detected_mac(kind) {
+                v.push(choice(
+                    format!(
+                        "Use detected {} MAC: {mac}",
+                        if kind == WakeKind::Wifi {
+                            "Wi-Fi"
+                        } else {
+                            "Ethernet"
+                        }
+                    ),
+                    "Save it for waking this TV when ADB is unavailable",
+                    Act::UseDetectedMac(kind),
+                ));
+            }
+        }
+        let cfg = self.power_config().cloned().unwrap_or_default();
+        for (kind, ready, detail) in [
+            (WakeKind::Wifi, !cfg.wifi_mac.is_empty(), "Wi-Fi MAC"),
+            (
+                WakeKind::Ethernet,
+                !cfg.ethernet_mac.is_empty(),
+                "Ethernet MAC",
+            ),
+        ] {
+            v.push(choice(
+                format!("Wake via {}", kind.label()),
+                if ready {
+                    "Configured".into()
+                } else {
+                    format!("Unavailable: configure {detail} below")
+                },
+                if ready {
+                    Act::Wake(kind)
+                } else {
+                    Act::SetPowerMac(kind)
+                },
+            ));
+        }
+        v.gap();
+        for kind in [WakeKind::Wifi, WakeKind::Ethernet] {
+            v.push(choice(
+                format!("Configure {}", kind.label()),
+                "Empty input clears the setting",
+                Act::SetPowerMac(kind),
+            ));
+        }
+        v.dim("Offline means ADB/network unreachable, not proof that mains power is off. WoWiFi requires TV firmware support; a sent packet does not prove it woke.");
+        v.push(choice("Back", "", Act::Back));
+        v
+    }
+
+    fn confirm_wake(&self) -> View {
+        let mut v = View::new("Send wake request?");
+        if let Some(kind) = self.pending_wake {
+            v.say(format!(
+                "Send {} for {}?",
+                kind.label(),
+                self.power_target().unwrap_or("this TV")
+            ));
+            v.dim("This sends one request, then checks whether Android responds. No settings are changed on the TV.");
+        }
+        v.push(first(button("Send wake request", Act::SendWake)));
+        v.push(button("Cancel", Act::Back));
+        v
+    }
+
+    fn confirm_standby(&self) -> View {
+        let mut v = View::new("Put TV in standby?");
+        v.say(format!(
+            "Press Power on {} to enter standby?",
+            self.power_target().unwrap_or("this TV")
+        ));
+        v.color("This is a power toggle, sent only if Android still reports Awake. A remote press at the same time could reverse it. Some TVs disconnect ADB and cannot wake over Wi-Fi; keep the physical remote nearby.", WARN);
+        v.push(first(button("Put in standby", Act::SendStandby)));
+        v.push(button("Cancel", Act::Back));
         v
     }
 

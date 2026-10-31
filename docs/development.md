@@ -132,6 +132,8 @@ cargo run -- --dry-run                      # try it against a TV without changi
 
 CI checks and builds it for Linux, Windows, both kinds of Mac, and Android phones (Termux, 64- and 32-bit ARM, built with the runner's Android NDK at API 24); a version tag attaches the six archives to the GitHub Release next to the APK. To build the phone version locally: `rustup target add aarch64-linux-android`, then point `CC_aarch64_linux_android` and `CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER` at the NDK's `aarch64-linux-android24-clang` (and `AR_aarch64_linux_android` at `llvm-ar`) and `cargo build --release --target aarch64-linux-android`. Inside Termux it's just `pkg install rust clang && cargo build --release`.
 
+Release builds use size optimization, fat LTO, one codegen unit and symbol stripping. CI also strips the finished binaries before upload: GNU `strip` on Linux, the Android NDK's `llvm-strip` for Termux, macOS `strip`, and Rust's `llvm-strip` component on Windows. For a local Rust toolchain warning about missing `libLLVM.dylib` during stripping, install `rustup component add llvm-tools-preview` and rebuild.
+
 ## Tests and CI
 
 The launcher's pure logic is unit tested on the computer, so a change doesn't need the TV to catch a regression:

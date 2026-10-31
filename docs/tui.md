@@ -9,6 +9,7 @@ It can:
 - **clean up the TV**: turn off ads, tracking and apps you don't use
 - **block ads on the whole TV**
 - **undo everything**
+- **check power and send wake requests** over ADB, Wi-Fi or wired Ethernet; send standby, Home or reboot commands over ADB
 
 ![The setup app's main menu](tui.png)
 
@@ -87,10 +88,33 @@ The app remembers your TV, so next time it connects by itself.
 | **Clean up the TV** | Lists the preinstalled apps on *your* TV that are worth turning off, with a short note on each.<br>• **Ticked for you:** ads, tracking, promos and store demos that owners of at least two TVs (from [cleanyourtv](https://github.com/Gathin23/cleanyourtv)'s lists for 370+ models) turned off. Untick any you want to keep, then choose **Turn off**.<br>• **Show more apps you could turn off:** streaming apps, screensavers and other things, only if you don't use them.<br>• Apps the TV needs can't be ticked.<br>• *Show every app on the TV* lists everything, for people who know what they're doing. |
 | **Speed and privacy** | **Block ads on the whole TV** (AdGuard's free ad-blocking DNS), **stop background Wi-Fi scanning**, and **stop apps waking up by themselves** (Xiaomi's PatchWall: its scheduled jobs run while you watch and can make 4K video stutter; it still opens, for the Input button's picker). **Set up my TV** does that last one too. |
 | **Undo all changes** | Turns every app back on and puts every setting back, including the TV's own home screen. Tick *Also remove TV Home* to uninstall it as well. |
-| **More tools** | A screenshot of the TV, a live log from TV Home (for troubleshooting), the phone remote's address, installing from a file, removing TV Home, restarting the TV, and **Save a support report**. |
+| **More tools** | TV power and wake, a screenshot, a live log, the phone remote's address, installing from a file, removing TV Home, restarting the TV, and **Save a support report**. |
 | **Use a different TV** | Disconnects and looks for TVs again. |
 
 **Nothing is ever deleted.** Apps are only turned off, and *Undo all changes* turns them back on. The only thing the app can uninstall is TV Home itself, and only when you choose that.
+
+### Power and wake
+
+Choose **More tools → TV power and wake** while connected. If the TV later stops responding, **Wake a saved TV** is available from *Find your TV*. The status reads Android's power state over ADB: **Online** means awake (including a screen saver), **Standby** means Android reports asleep/dozing, **Offline** means ADB is unreachable (not proof that the TV has no power), and **Unknown** means the reading is missing or unauthorized. The screen checks again periodically and shows the evidence behind the label.
+
+**Wake via ADB** sends Android's `KEYCODE_WAKEUP` only when the TV is still reachable over ADB and reports Standby. This worked on the development Mi TV, even though a Wake-on-Wi-Fi magic packet did not wake it. ADB wake cannot help if the TV drops its ADB connection during standby; the network wake methods below do not need ADB.
+
+**Standby via ADB** first checks that Android still reports Online, then sends `KEYCODE_POWER` (the remote's Power key). This put the development Mi TV into Standby and left ADB reachable; `KEYCODE_SLEEP` did not reliably keep it asleep on that TV. Because Power is a toggle, a simultaneous remote press could reverse it; the confirmation warns you. Other models may disconnect ADB in standby, so keep the physical remote nearby. If ADB drops, the app says the actual power state is unverified rather than claiming success. **Restart the TV** and **Press Home** remain under *More tools*.
+
+For Wake-on-Wi-Fi, choose **Use detected Wi-Fi MAC** while the TV is connected over ADB; for a TV using Ethernet, choose its detected Ethernet MAC instead. Detection reads the TV's current interface (not the router's BSSID). Some TVs hide this information: enter the MAC from the TV's network settings if no detected choice appears. The MAC is saved for future wake attempts **without an ADB connection or even an ADB installation**. The app broadcasts the magic packet on the computer's local IPv4 /24, ports 9 and 7. Both devices must be on the same local network; WoWiFi only works if the TV's firmware and network settings support waking its Wi-Fi radio. Sending a packet is not proof that the TV woke. Without ADB, power-state verification shows Unknown.
+
+MAC settings live under the chosen TV's ADB address in the app folder's `config.json`:
+
+```json
+"power": {
+  "192.168.0.44:5555": {
+    "wifi_mac": "02:AA:BB:CC:DD:EE",
+    "ethernet_mac": ""
+  }
+}
+```
+
+Each wake or standby action asks for confirmation. `--dry-run` sends no keys or wake packets. Old IR/HDMI entries in `config.json` are kept when saving settings, but are no longer shown or used. On Unix the app sets `config.json` to owner-only permissions when it saves it.
 
 ## Keys
 

@@ -9,6 +9,7 @@ use crate::flows::{self, ApkSource, Env};
 use crate::github::{self, Release};
 use crate::log::{Level, LogEntry};
 use crate::plan::{self, EngineEvent, Outcome, Plan};
+use crate::power::{self, State, TvPowerConfig, WakeKind};
 use crate::setup;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
@@ -40,6 +41,9 @@ pub enum Job {
     Scan,
     /// `adb pair <addr> <code>` (Wireless debugging on newer Google TV).
     Pair(String, String),
+    PowerCheck(String),
+    Wake(String, WakeKind, TvPowerConfig),
+    Standby(String),
 }
 
 /// Actions that change the TV: built into a plan for the preview first.
@@ -111,6 +115,8 @@ pub enum Event {
     BackupDir(std::path::PathBuf),
     ConnectFailed(String),
     Paired(Result<String, String>),
+    PowerStatus(State, String),
+    PowerActionResult(String),
 }
 
 pub struct Worker {
@@ -303,8 +309,201 @@ impl Worker {
                     self.send(Event::Paired(Err(text.trim().to_string())));
                 }
             }
+            Job::PowerCheck(addr) => self.power_check(&addr),
+            Job::Wake(addr, kind, cfg) => self.wake(&addr, kind, &cfg),
+            Job::Standby(addr) => self.standby(&addr),
         }
         self.busy(None);
+    }
+
+    fn probe_power(&self, addr: &str) -> (State, String) {
+        if self.adb.exe.as_os_str().is_empty() {
+            return (
+                State::Unknown,
+                "ADB is not installed; wake requests can still be sent".into(),
+            );
+        }
+        // Target the selected TV even when adb's devices list contains a stale transport.
+        let probe = Adb {
+            exe: self.adb.exe.clone(),
+            serial: Some(addr.to_string()),
+        };
+        let mut out = self
+            .runner
+            .run(&probe.shell(&["dumpsys", "power"]), Duration::from_secs(4));
+        if !out.ok() {
+            let connected = self
+                .runner
+                .run(&self.adb.global(&["connect", addr]), Duration::from_secs(4));
+            if device::connect_succeeded(&connected.text()) {
+                out = self
+                    .runner
+                    .run(&probe.shell(&["dumpsys", "power"]), Duration::from_secs(4));
+            }
+        }
+        if out.text().contains("unauthorized") {
+            return (State::Unknown, "ADB needs authorization on the TV".into());
+        }
+        let (state, evidence) = power::classify(out.ok(), out.ok().then_some(out.stdout.as_str()));
+        (state, evidence.into())
+    }
+
+    fn power_check(&self, addr: &str) {
+        let (state, evidence) = self.probe_power(addr);
+        self.send(Event::PowerStatus(state, evidence));
+    }
+
+    fn wake(&self, addr: &str, kind: WakeKind, cfg: &TvPowerConfig) {
+        self.busy(Some("Sending wake request…"));
+        if self.dry_run {
+            self.send(Event::PowerActionResult(format!(
+                "Practice mode: would send {} (nothing sent).",
+                kind.label()
+            )));
+            return;
+        }
+        let result = match kind {
+            WakeKind::Adb => {
+                let (state, _) = self.probe_power(addr);
+                if state != State::Standby {
+                    Err(format!(
+                        "ADB wake requires a reachable TV in Standby (currently {})",
+                        state.label()
+                    ))
+                } else {
+                    let probe = Adb {
+                        exe: self.adb.exe.clone(),
+                        serial: Some(addr.to_string()),
+                    };
+                    let out = self.runner.run(
+                        &probe.shell(&["input", "keyevent", "KEYCODE_WAKEUP"]),
+                        Duration::from_secs(5),
+                    );
+                    if out.ok() {
+                        Ok(())
+                    } else {
+                        Err("ADB wake command failed".into())
+                    }
+                }
+            }
+            WakeKind::Wifi | WakeKind::Ethernet => {
+                let mac = if kind == WakeKind::Wifi {
+                    &cfg.wifi_mac
+                } else {
+                    &cfg.ethernet_mac
+                };
+                match setup::local_ipv4() {
+                    Some(ip) => {
+                        let o = ip.octets();
+                        power::wake_lan(mac, std::net::Ipv4Addr::new(o[0], o[1], o[2], 255))
+                    }
+                    None => Err("Couldn't find this computer's local IPv4 network".into()),
+                }
+            }
+        };
+        match result {
+            Ok(()) => {
+                self.log(
+                    Level::Info,
+                    format!(
+                        "Sent {} wake request for {addr} (delivery does not prove the TV woke)",
+                        kind.label()
+                    ),
+                );
+                if self.adb.exe.as_os_str().is_empty() {
+                    self.send(Event::PowerActionResult(format!(
+                        "{} request sent. Install ADB to verify whether the TV woke.",
+                        kind.label()
+                    )));
+                    self.send(Event::PowerStatus(
+                        State::Unknown,
+                        "ADB unavailable; wake result not verified".into(),
+                    ));
+                    return;
+                }
+                self.send(Event::PowerActionResult(format!(
+                    "{} request sent. Checking the TV…",
+                    kind.label()
+                )));
+                for _ in 0..3 {
+                    std::thread::sleep(Duration::from_secs(3));
+                    let (state, why) = self.probe_power(addr);
+                    if matches!(state, State::Online | State::Standby) {
+                        self.send(Event::PowerStatus(state, why));
+                        return;
+                    }
+                }
+                self.send(Event::PowerStatus(
+                    State::Offline,
+                    "No ADB response after wake request; check again later".into(),
+                ));
+            }
+            Err(e) => self.send(Event::PowerActionResult(format!(
+                "{} failed: {e}",
+                kind.label()
+            ))),
+        }
+    }
+
+    fn standby(&self, addr: &str) {
+        self.busy(Some("Putting the TV in standby…"));
+        if self.dry_run {
+            self.send(Event::PowerActionResult(
+                "Practice mode: would send KEYCODE_POWER (nothing sent).".into(),
+            ));
+            return;
+        }
+        let (before, _) = self.probe_power(addr);
+        if before == State::Standby {
+            self.send(Event::PowerActionResult(
+                "The TV already reports Standby; no key sent.".into(),
+            ));
+            return;
+        }
+        if before != State::Online {
+            self.send(Event::PowerActionResult(format!(
+                "Can't put the TV in standby: Android reports {}. Check ADB and try again.",
+                before.label()
+            )));
+            return;
+        }
+        let probe = Adb {
+            exe: self.adb.exe.clone(),
+            serial: Some(addr.to_string()),
+        };
+        let out = self.runner.run(
+            &probe.shell(&["input", "keyevent", "KEYCODE_POWER"]),
+            Duration::from_secs(5),
+        );
+        self.log(
+            if out.ok() { Level::Info } else { Level::Warn },
+            format!(
+                "KEYCODE_POWER to {addr}: {}; ADB may disconnect in standby",
+                if out.ok() {
+                    "command completed"
+                } else {
+                    "connection closed or command failed"
+                }
+            ),
+        );
+        let (after, why) = self.probe_power(addr);
+        if after == State::Standby {
+            self.send(Event::PowerStatus(after, why));
+            self.send(Event::PowerActionResult("TV reports Standby.".into()));
+        } else if after == State::Offline {
+            self.send(Event::PowerStatus(
+                State::Unknown,
+                "ADB disconnected after KEYCODE_POWER; actual power state unverified".into(),
+            ));
+            self.send(Event::PowerActionResult(if out.ok() { "Power key sent, but ADB disconnected; standby cannot be verified. You may need the physical remote to wake the TV." } else { "ADB disconnected during KEYCODE_POWER; whether the TV entered standby is unverified. You may need the physical remote to wake it." }.into()));
+        } else {
+            self.send(Event::PowerStatus(after, why));
+            self.send(Event::PowerActionResult(if out.ok() {
+                format!("KEYCODE_POWER sent, but TV now reports {}.", after.label())
+            } else {
+                "KEYCODE_POWER did not complete; check the TV before retrying.".into()
+            }));
+        }
     }
 
     fn connect(&mut self, addr: &str) {
@@ -444,6 +643,21 @@ impl Worker {
             } else {
                 device::parse_inet(&self.shell_text(&["ip", "-f", "inet", "addr", "show", "wlan0"]))
             };
+            // Don't log the full dumps: Wi-Fi diagnostics include the user's saved network names.
+            let wifi = self.runner.run(
+                &self.adb.shell(&["dumpsys", "wifi"]),
+                Duration::from_secs(5),
+            );
+            if wifi.ok() {
+                tv.wifi_mac = power::wifi_mac_from_dump(&wifi.stdout);
+            }
+            let ethernet = self.runner.run(
+                &self.adb.shell(&["dumpsys", "ethernet"]),
+                Duration::from_secs(5),
+            );
+            if ethernet.ok() {
+                tv.ethernet_mac = power::ethernet_mac_from_dump(&ethernet.stdout);
+            }
             let pkg = self.shell_text(&["dumpsys", "package", PKG]);
             tv.launcher_version = device::parse_version_name(&pkg);
             tv.launcher_code = device::parse_version_code(&pkg);
@@ -653,6 +867,81 @@ impl Worker {
         if let Some(mut c) = self.logcat.lock().unwrap().take() {
             let _ = c.kill();
             let _ = c.wait();
+        }
+    }
+}
+
+#[cfg(test)]
+mod power_tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    struct PowerRunner {
+        asleep: Arc<AtomicBool>,
+        calls: Arc<Mutex<Vec<String>>>,
+    }
+    impl Runner for PowerRunner {
+        fn run(&self, argv: &[String], _: Duration) -> adb::Output {
+            let line = adb::display(argv);
+            self.calls.lock().unwrap().push(line.clone());
+            if line.contains("KEYCODE_POWER") {
+                self.asleep.store(true, Ordering::SeqCst);
+            }
+            adb::Output {
+                code: Some(0),
+                stdout: if line.contains("dumpsys power") {
+                    if self.asleep.load(Ordering::SeqCst) {
+                        "mWakefulness=Asleep\n"
+                    } else {
+                        "mWakefulness=Awake\n"
+                    }
+                    .into()
+                } else {
+                    String::new()
+                },
+                ..Default::default()
+            }
+        }
+    }
+    #[test]
+    fn standby_only_sends_sleep_when_awake_and_targets_selected_tv() {
+        for initially_asleep in [false, true] {
+            let calls = Arc::new(Mutex::new(Vec::new()));
+            let asleep = Arc::new(AtomicBool::new(initially_asleep));
+            let (tx, rx) = std::sync::mpsc::channel();
+            let worker = Worker {
+                adb: Adb {
+                    exe: PathBuf::from("adb"),
+                    serial: Some("other:5555".into()),
+                },
+                runner: Box::new(PowerRunner {
+                    asleep,
+                    calls: calls.clone(),
+                }),
+                store: Store::at(&std::env::temp_dir()),
+                repo: String::new(),
+                dry_run: false,
+                tx,
+                logcat: Arc::new(Mutex::new(None)),
+            };
+            worker.standby("192.168.0.44:5555");
+            let lines = calls.lock().unwrap();
+            let sleeps: Vec<_> = lines
+                .iter()
+                .filter(|s| s.contains("KEYCODE_POWER"))
+                .collect();
+            assert_eq!(sleeps.len(), usize::from(!initially_asleep));
+            if !initially_asleep {
+                assert_eq!(
+                    sleeps[0].as_str(),
+                    "adb -s 192.168.0.44:5555 shell input keyevent KEYCODE_POWER"
+                );
+                assert!(
+                    rx.try_iter()
+                        .any(|e| matches!(e, Event::PowerStatus(State::Standby, _)))
+                );
+            }
         }
     }
 }

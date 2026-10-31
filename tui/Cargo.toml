@@ -1,6 +1,6 @@
 [package]
 name = "tvhome-tui"
-version = "1.12.0"
+version = "1.12.1"
 edition = "2024"
 description = "Terminal app to set up an Android TV with the TV Home launcher: connect, install, debloat, restore."
 publish = false
@@ -16,7 +16,10 @@ toml = "1.1.8"
 ureq = { version = "3.5.0", features = ["json"] }
 zip = { version = "9.1.1", default-features = false, features = ["deflate"] }
 
-# Smaller downloads: strip symbols and let LTO drop unused code.
+# Smaller release downloads (at the cost of a slower build). Keep unwinding so the terminal is
+# restored on panic, rather than using panic=abort just to save a little more space.
 [profile.release]
 strip = true
-lto = "thin"
+opt-level = "z"
+lto = "fat"
+codegen-units = 1

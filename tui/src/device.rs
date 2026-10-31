@@ -343,6 +343,8 @@ pub struct TvInfo {
     pub android: String,
     pub sdk: u32,
     pub ip: Option<String>,
+    pub wifi_mac: Option<String>,
+    pub ethernet_mac: Option<String>,
     pub launcher_version: Option<String>,
     pub launcher_code: Option<u64>,
     pub home: Option<String>,
